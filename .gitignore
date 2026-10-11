@@ -1,0 +1,9 @@
+node_modules/
+lib/
+*.tgz
+*.tsbuildinfo
+*.db
+*.db-*
+.env*
+coverage/
+.DS_Store

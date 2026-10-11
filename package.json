@@ -1,0 +1,36 @@
+{
+  "name": "koishi-plugin-mcfish",
+  "version": "1.0.0",
+  "description": "Minecraft 风格钓鱼模拟器，ZeroBot mcfish 的 Koishi 移植版",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": ["lib", "src", "tsconfig.json", "LICENSE", "NOTICE", "README.md"],
+  "license": "AGPL-3.0-only",
+  "author": "Huanghun542",
+  "repository": { "type": "git", "url": "https://github.com/Huanghun542/koishi-plugin-mcfish.git" },
+  "homepage": "https://github.com/Huanghun542/koishi-plugin-mcfish#readme",
+  "bugs": { "url": "https://github.com/Huanghun542/koishi-plugin-mcfish/issues" },
+  "keywords": ["koishi", "plugin", "minecraft", "fishing", "钓鱼"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test test/*.test.cjs",
+    "prepack": "npm run build"
+  },
+  "peerDependencies": { "koishi": "^4.18.0", "koishi-plugin-puppeteer": "^3.9.0" },
+  "peerDependenciesMeta": { "koishi-plugin-puppeteer": { "optional": true } },
+  "devDependencies": {
+    "koishi": "4.18.11",
+    "@koishijs/plugin-database-sqlite": "4.7.0",
+    "@koishijs/plugin-mock": "2.6.6",
+    "koishi-plugin-puppeteer": "3.9.0",
+    "typescript": "5.9.3",
+    "@types/node": "^22.0.0"
+  },
+  "koishi": {
+    "description": { "zh": "MC 钓鱼：背包、商店、装备、附魔、合成、诅咒与每日行情" },
+    "service": { "required": ["database"], "optional": ["puppeteer"] },
+    "locales": ["zh-CN"]
+  }
+}

@@ -1,0 +1,17 @@
+koishi-plugin-mcfish
+Copyright (C) 2026 Huanghun542. TypeScript/Koishi port, modified 2026-10-11.
+
+Adapted from the mcfish plugin in FloatTech/ZeroBot-Plugin (Go, rules 5.6.2).
+Original plugin author: fangliuyu; with contributions from the upstream project.
+Upstream source: https://github.com/FloatTech/ZeroBot-Plugin/tree/master/plugin/mcfish
+Upstream license: GNU Affero General Public License, version 3.
+Item definitions: https://github.com/FloatTech/zbpdata/blob/main/McFish/articlesInfo.json
+
+This modified version is distributed under AGPL-3.0-only.
+The complete license is included in LICENSE. No warranty is provided.
+Source code: https://github.com/Huanghun542/koishi-plugin-mcfish
+
+Changes: reimplemented in TypeScript for Koishi 4, platform-specific player IDs,
+database transactions, configurable time zone and fishing delays, standalone
+wallet, optional Puppeteer cards and corrected probability/date handling.
+Original artwork and fonts are not redistributed.
