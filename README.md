@@ -4,9 +4,7 @@
 
 **在聊天中抛竿、收集渔获，经营属于你的仓库。**
 
-![Koishi](https://img.shields.io/badge/Koishi-4.18%2B-4e8fb8?style=flat-square)
-![Node.js](https://img.shields.io/badge/Node.js-22%2B-4c956c?style=flat-square)
-![License](https://img.shields.io/badge/License-AGPL--3.0-728294?style=flat-square)
+![Koishi](https://img.shields.io/badge/Koishi-4.18%2B-4e8fb8?style=flat-square) ![Node.js](https://img.shields.io/badge/Node.js-22%2B-4c956c?style=flat-square) ![License](https://img.shields.io/badge/License-AGPL--3.0-728294?style=flat-square)
 
 [快速开始](#快速开始) · [常用指令](#常用指令) · [玩法说明](#玩法说明) · [下载插件](https://github.com/Huanghun542/koishi-plugin-mcfish/releases) · [反馈问题](https://github.com/Huanghun542/koishi-plugin-mcfish/issues)
 
