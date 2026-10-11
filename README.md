@@ -4,7 +4,7 @@
 
 **在聊天中抛竿、收集渔获，经营属于你的仓库。**
 
-![Koishi](https://img.shields.io/badge/Koishi-4.18%2B-4e8fb8?style=flat-square) ![Node.js](https://img.shields.io/badge/Node.js-22%2B-4c956c?style=flat-square) ![License](https://img.shields.io/badge/License-AGPL--3.0-728294?style=flat-square)
+![Koishi](https://img.shields.io/badge/Koishi-4.18%2B-4e8fb8?style=flat-square) ![Node.js](https://img.shields.io/badge/Node.js-22%2B-4c956c?style=flat-square) [![npm](https://img.shields.io/npm/v/koishi-plugin-mcfish?style=flat-square)](https://www.npmjs.com/package/koishi-plugin-mcfish) ![License](https://img.shields.io/badge/License-AGPL--3.0-728294?style=flat-square)
 
 [快速开始](#快速开始) · [常用指令](#常用指令) · [玩法说明](#玩法说明) · [下载插件](https://github.com/Huanghun542/koishi-plugin-mcfish/releases) · [反馈问题](https://github.com/Huanghun542/koishi-plugin-mcfish/issues)
 
@@ -36,11 +36,13 @@
 
 需要 **Koishi 4.18+**、**Node.js 22+** 和数据库插件，推荐 SQLite。启用 **Puppeteer** 后显示图片界面，未启用时使用文字。
 
-从 [Releases](https://github.com/Huanghun542/koishi-plugin-mcfish/releases) 下载 `.tgz`，在 Koishi 项目目录安装：
+在 Koishi 插件市场搜索 **`mcfish`** 并安装，或在 Koishi 项目目录执行：
 
 ```bash
-npm install /path/to/koishi-plugin-mcfish-2.1.0.tgz
+npm install koishi-plugin-mcfish
 ```
+
+也可从 [Releases](https://github.com/Huanghun542/koishi-plugin-mcfish/releases) 下载 `.tgz` 手动安装。
 
 在控制台启用数据库和 `mcfish`，发送 `开始5次钓鱼` 即可开始。新用户自动获得 **木钓鱼竿和 100 绿宝石**，无需额外注册。
 
