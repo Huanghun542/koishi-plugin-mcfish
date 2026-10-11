@@ -4,31 +4,19 @@ import { SOURCE_URL } from './catalog'
 import { Config, RecallTarget, validateConfig } from './config'
 import { GameRepository } from './database'
 import { buy, dayKey, enchant, equip, finishFishing, fishingText, GameError, Market, overflowText,
-  leaderboardText, Player, repair, salePrice, sell, sellAll, shopItems, startFishing, trimOverflow, unequip } from './game'
+  leaderboardText, Player, repair, salePrice, sell, sellAll, startFishing, trimOverflow, unequip } from './game'
 import { MessageFlow } from './core/messages'
-import { leaderboardHtml, marketHtml, renderPages, shopHtml, warehouseHtml, warehouseText } from './render'
+import { marketChange, rules } from './core/help'
+import { helpHtml, leaderboardHtml, marketHtml, renderPages, shopHtml, shopText, warehouseHtml, warehouseText } from './render'
 export { Config } from './config'
+export { rules } from './core/help'
 export const name = 'mcfish'
 export const inject = { required: ['database'], optional: ['puppeteer'] }
-export const usage = `MC 钓鱼。启用数据库后即可使用，图片界面需 Puppeteer。发送“钓鱼帮助”查看指令。源码：${SOURCE_URL}。`
-export function rules(config: Config): string {
-  return `MC 钓鱼模拟器
-开始N次钓鱼 / 钓鱼（一次）
-仓库 / 市场 / 铁匠铺 / 钓鱼钱包
-福布斯排行榜
-购买 物品名称 数量 / 出售 物品名称 数量 / 一键出售
-出售 钓鱼竿 数量（无回收价值，装备中的鱼竿须先卸下）
-装备 N / 卸下鱼竿 / 维修 N / 附魔 N 附魔书名称
-附魔书：耐久附魔书、海之眷顾附魔书
+export const usage = `MC 钓鱼。启用数据库后即可使用，图片界面需 Puppeteer。发送“钓鱼帮助”查看指令。源码：[${SOURCE_URL}](${SOURCE_URL})
 
-新用户获得木钓鱼竿和 100 绿宝石。每日最多 ${config.dailyLimit} 次，一批随机等待 1 至 ${config.maxWaitSeconds} 秒；次数与市场按 ${config.timezone} 零点刷新。
-仓库最多两页：鱼竿一行一个，物品一行两个，超出容量按当日收购价自动出售。一键出售保留鱼竿、附魔书与稀有物品。
-基础收购价为标价的一半；鱼竿回收价为零，附魔书按半价回收且不参与涨价。
-市场每日高价收购 ${config.marketMinItems} 至 ${config.marketMaxItems} 种物品，涨幅 ${config.marketMinIncrease}% 至 ${config.marketMaxIncrease}%。
-维修消耗 200 绿宝石并修满耐久。附魔成功率 50%，每次消耗 ${config.enchantCost} 绿宝石${config.consumeEnchantBook ? '和一本对应附魔书' : ''}，失败不返还，最高三级。
-耐久附魔额外增加 30/70/120 耐久；海之眷顾增加 1%/3%/5% 的双倍产出概率。
-开源地址：${SOURCE_URL}`
-}
+新增物品图片：将透明 PNG 放入插件安装目录的 \`assets/items/物品名称.png\`，文件名须与奖池中的物品名称完全一致（Linux 区分大小写），然后重载插件。Docker 常见路径：\`/koishi/node_modules/koishi-plugin-mcfish/assets/items/物品名称.png\`
+
+建议从 MC 百科下载透明物品图标，或使用 AI 绘制。推荐 64×64 或 128×128 像素、大小不超过 200 KB；图片不宜过大，找不到同名图片时使用屏障图标`
 export function apply(ctx: Context, config: Config) {
   validateConfig(config)
   const repository = new GameRepository(ctx, config)
@@ -88,14 +76,22 @@ export function apply(ctx: Context, config: Config) {
         return
       } catch (error) { ctx.logger('mcfish').warn('图片渲染失败，使用文字输出：%s', error) }
     }
-    const text = kind === 'warehouse' ? warehouseText(p, m, config) : kind === 'shop'
-      ? `铁匠铺（鱼竿均无附魔、满耐久）：\n${shopItems(config).map(i => `${i.name}：${i.price} 绿宝石`).join('\n')}`
-      : `每日收购市场 · ${m.day}\n${Object.entries(m.increases).map(([name, increase]) => `${name}：${salePrice(name, m, config)} 绿宝石，涨幅 +${increase}%`).join('\n')}\n其他物品按基础价格收购。`
+    const text = kind === 'warehouse' ? warehouseText(p, m, config) : kind === 'shop' ? shopText(p, config)
+      : `每日收购市场 · ${m.day}\n${Object.entries(m.increases).map(([name, increase]) => `${name}：${salePrice(name, m, config)} 绿宝石，${marketChange(increase)}`).join('\n')}\n其他物品按基础价格收购。`
     await flow.send(text)
   }
   const command = (name: string, description: string) => ctx.command(`mcfish.${name}`, description)
-  ctx.command('mcfish', 'MC 钓鱼模拟器').action(({ session }) => guard(session, async (_, flow) => { await flow.send(rules(config)) }))
-  command('rules', '查看钓鱼帮助').alias('钓鱼帮助', '查看钓鱼规则').action(({ session }) => guard(session, async (_, flow) => { await flow.send(rules(config)) }))
+  async function help(flow: MessageFlow) {
+    if (config.images && ctx.puppeteer) {
+      try {
+        for (const image of await renderPages(ctx, helpHtml(config))) await flow.send(image, 'notice', true)
+        return
+      } catch (error) { ctx.logger('mcfish').warn('帮助渲染失败，使用文字输出：%s', error) }
+    }
+    await flow.send(rules(config))
+  }
+  ctx.command('mcfish', 'MC 钓鱼模拟器').action(({ session }) => guard(session, (_, flow) => help(flow)))
+  command('rules', '查看钓鱼帮助').alias('钓鱼帮助', '查看钓鱼规则', '钓鱼规则').action(({ session }) => guard(session, (_, flow) => help(flow)))
   command('source', '查看开源代码').alias('钓鱼源码').action(({ session }) => guard(session, async (_, flow) => { await flow.send(`${SOURCE_URL}\n感谢 fangliuyu 与 FloatTech/ZeroBot-Plugin 贡献者。AGPL-3.0-only。`) }))
   command('pack', '查看仓库').alias('仓库', '钓鱼背包').action(({ session }) => guard(session, (id, flow) => view(id, flow, 'warehouse', session!.username || session!.userId || '玩家')))
   command('market', '查看今日收购行情').alias('市场', '钓鱼市场', '钓鱼看板').action(({ session }) => guard(session, (id, flow) => view(id, flow, 'market', '')))
@@ -135,7 +131,7 @@ export function apply(ctx: Context, config: Config) {
   }
   ctx.command('mcfish.buy <物品:string> [数量:string]', '购买鱼竿或附魔书').alias('购买')
     .action(({ session, options }, item, quantity) => guard(session, (id, flow) => mutation(id, flow, p => buy(p, item, quantity, config)), options))
-  ctx.command('mcfish.sell <物品:string> [数量:string]', '出售仓库物品').alias('出售')
+  ctx.command('mcfish.sell <物品:string> [数量:string]', '出售物品；出售 钓鱼竿 N 按鱼竿序号出售').alias('出售')
     .action(({ session, options }, item, quantity) => guard(session, (id, flow) => mutation(id, flow, (p, m) => sell(p, item, quantity, m, config)), options))
   command('sell-all', '出售普通物品，保留鱼竿、附魔书和稀有物品').alias('一键出售')
     .action(({ session }) => guard(session, (id, flow) => mutation(id, flow, (p, m) => sellAll(p, m, config))))
@@ -143,8 +139,8 @@ export function apply(ctx: Context, config: Config) {
     .action(({ session, options }, index) => guard(session, (id, flow) => mutation(id, flow, p => equip(p, index)), options))
   command('unequip', '卸下当前鱼竿').alias('卸下鱼竿')
     .action(({ session }) => guard(session, (id, flow) => mutation(id, flow, p => unequip(p))))
-  ctx.command('mcfish.repair <序号:string>', '花费 200 绿宝石修满鱼竿耐久').alias('维修')
-    .action(({ session, options }, index) => guard(session, (id, flow) => mutation(id, flow, p => repair(p, index)), options))
+  ctx.command('mcfish.repair <序号:string>', `花费 ${config.repairCost} 绿宝石修满鱼竿耐久`).alias('维修')
+    .action(({ session, options }, index) => guard(session, (id, flow) => mutation(id, flow, p => repair(p, index, config)), options))
   ctx.command('mcfish.enchant <序号:string> <附魔书:string>', '对指定鱼竿附魔').alias('附魔')
     .action(({ session, options }, index, book) => guard(session, (id, flow) => mutation(id, flow, p => enchant(p, index, book, config)), options))
 }

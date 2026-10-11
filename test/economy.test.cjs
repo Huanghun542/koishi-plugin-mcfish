@@ -22,16 +22,18 @@ test('a configured rare custom item is protected; explicit sale remains availabl
   const p = g.createPlayer('seller'); p.inventory = { 稀有石头: 2, 木棍: 1 }
   g.sellAll(p, market, c)
   assert.deepEqual(p.inventory, { 稀有石头: 2 })
-  assert.match(g.sell(p, '稀有石头', 1, market, c), /获得 50 绿宝石/)
+  assert.match(g.sell(p, '稀有石头', 1, market, c), /获得 100 绿宝石/)
 })
-test('generic rod sale treats N as quantity, preserves the equipped rod and pays zero', () => {
+test('generic rod sale selects the exact warehouse index and automatically equips the next rod', () => {
   const p = g.createPlayer('seller')
   p.rods.push(g.newRod('铁钓鱼竿'), g.newRod('钻石钓鱼竿'))
-  const equippedId = p.equippedId, wallet = p.wallet
+  const equippedId = p.equippedId, lastId = p.rods[2].id, wallet = p.wallet
   assert.match(g.sell(p, '钓鱼竿', 2, market, config), /获得 0 绿宝石/)
-  assert.equal(p.wallet, wallet); assert.equal(p.rods.length, 1); assert.equal(p.rods[0].id, equippedId)
-  assert.throws(() => g.sell(p, '钓鱼竿', 1, market, config), /装备中的/)
-  g.unequip(p); g.sell(p, '钓鱼竿', undefined, market, config); assert.equal(p.rods.length, 0)
+  assert.equal(p.wallet, wallet); assert.equal(p.rods.length, 2); assert.equal(p.equippedId, equippedId)
+  assert.match(g.sell(p, '钓鱼竿', 1, market, config), /已自动装备 钻石钓鱼竿/)
+  assert.equal(p.equippedId, lastId)
+  assert.throws(() => g.sell(p, '钓鱼竿', 2, market, config), /序号不存在/)
+  g.sell(p, '钓鱼竿', undefined, market, config); assert.equal(p.rods.length, 0); assert.equal(p.equippedId, null)
 })
 test('named, enchanted and overflowing rods all have zero resale value', () => {
   const p = g.createPlayer('seller'); p.rods.push(g.newRod('下界合金钓鱼竿'))
@@ -41,13 +43,17 @@ test('named, enchanted and overflowing rods all have zero resale value', () => {
   assert.equal(p.wallet, wallet)
   for (const rod of RODS) assert.equal(g.salePrice(rod.name, market, config), 0)
 })
-test('half-price buyback applies premium then rounds down to whole emeralds', () => {
+test('1x pricing keeps former default quotes and rounds the final multiplied quote to the nearest emerald', () => {
   assert.equal(g.salePrice('生鳕鱼', market, config), 5)
   assert.equal(g.salePrice('生鳕鱼', { day: '', increases: { 生鳕鱼: 100 } }, config), 10)
   assert.equal(g.salePrice('生鳕鱼', { day: '', increases: { 生鳕鱼: 200 } }, config), 15)
   const c = Config({ lootTable: config.lootTable.map(item => item.name === '生鳕鱼' ? { ...item, price: 11 } : item) })
-  assert.equal(g.salePrice('生鳕鱼', market, c), 5)
-  assert.equal(g.salePrice('生鳕鱼', { day: '', increases: { 生鳕鱼: 10 } }, c), 6)
+  assert.equal(g.salePrice('生鳕鱼', market, c), 11)
+  assert.equal(g.salePrice('生鳕鱼', { day: '', increases: { 生鳕鱼: 10 } }, c), 12)
+  const reduced = Config({ saleMultiplier: 0.5 })
+  assert.equal(g.salePrice('生鳕鱼', market, reduced), 3)
+  assert.equal(g.salePrice('生鳕鱼', { day: '', increases: { 生鳕鱼: -50 } }, config), 3)
+  assert.equal(g.salePrice('生鳕鱼', { day: '', increases: { 生鳕鱼: -50 } }, reduced), 1)
 })
 test('books never enter premium markets and cannot be bought and resold for profit', () => {
   for (const book of BOOKS) {
@@ -58,7 +64,9 @@ test('books never enter premium markets and cannot be bought and resold for prof
     g.sell(p, book, 10, quote, config)
     assert.equal(10000 - p.wallet, spent / 2)
     const c = Config({ lootTable: config.lootTable.map(item => item.name === book ? { ...item, price: 1 } : item) })
-    assert.equal(g.salePrice(book, quote, c), 0)
+    assert.equal(g.salePrice(book, quote, c), 1)
+    const inflated = Config({ saleMultiplier: 10 })
+    assert.equal(g.salePrice(book, quote, inflated), g.basePrice(book, inflated))
   }
   for (let day = 0; day < 20; day++) {
     const m = { day: '', increases: {} }; g.refreshMarket(m, String(day), config)

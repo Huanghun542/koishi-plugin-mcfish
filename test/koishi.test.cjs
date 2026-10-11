@@ -86,7 +86,8 @@ test('generic rod sale is reachable in Chinese and does not increase wallet', as
   await bob.shouldReply('出售 钓鱼竿 1', /无回收价值，获得 0 绿宝石/)
   const after = await state('bob')
   assert.equal(after.wallet, before.wallet); assert.equal(after.rods.length, before.rods.length - 1)
-  assert.equal(after.equippedId, before.equippedId)
+  assert.equal(after.equippedId, before.rods[1].id)
+  assert(!after.rods.some(rod => rod.id === before.rods[0].id))
 })
 test('福布斯排行榜 displays updated names, masked identifiers and descending balances', async () => {
   bob.event.user.name = '黄昏'

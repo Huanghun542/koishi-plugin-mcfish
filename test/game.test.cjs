@@ -13,6 +13,7 @@ test('defaults, four table columns and console controls match the requested conf
   assert.equal(Config({}).maxWaitSeconds, 40)
   assert.equal(config.normalColor, '#ffffff'); assert.equal(config.rareColor, '#ffd700')
   assert.equal(config.enchantCost, 500); assert.equal(config.consumeEnchantBook, true)
+  assert.equal(config.repairCost, 200); assert.equal(config.saleMultiplier, 1); assert.equal(config.marketMinIncrease, -50)
   assert.equal(config.recallDelaySeconds, 5); assert.deepEqual(config.recallTargets, [])
   const groups = Config.list
   const table = groups[0].dict.lootTable
@@ -48,7 +49,7 @@ test('partial durability is used and an exhausted rod remains repairable', () =>
   assert.equal(result.casts, 3); assert.equal(p.rods[0].durability, 0)
   g.finishFishing(p, 0)
   assert.throws(() => g.startFishing(p, 1, config), /损坏/)
-  g.repair(p, 1); assert.equal(p.rods[0].durability, 30); assert.equal(p.wallet, 99800)
+  g.repair(p, 1, config); assert.equal(p.rods[0].durability, 30); assert.equal(p.wallet, 99800)
 })
 test('no equipped rod and invalid quantities leave casts and inventory untouched', () => {
   const p = funded(); p.equippedId = null
@@ -99,14 +100,14 @@ test('luck levels use exact 1%, 3%, 5% boundaries; doubling consumes one cast an
 test('zero-weight items are never drawn and configured prices are used', () => {
   const c = Config({ lootTable: config.lootTable.map((i, n) => ({ ...i, weight: n === 1 ? 1 : 0, price: 77 })) })
   const p = funded(), result = g.startFishing(p, 20, c, 0, () => 0)
-  assert.deepEqual(result.drops, { 鲑鱼: 20 }); assert.equal(g.salePrice('鲑鱼', market(), c), 38)
+  assert.deepEqual(result.drops, { 鲑鱼: 20 }); assert.equal(g.salePrice('鲑鱼', market(), c), 77)
 })
-test('markets choose 5 to 15 distinct items with 10% to 200% increases and stable daily quotes', () => {
+test('markets choose 5 to 15 distinct items with -50% to 200% changes and stable daily quotes', () => {
   for (let day = 1; day <= 60; day++) {
     const m = market(); g.refreshMarket(m, String(day), config)
     const values = Object.values(m.increases)
     assert(values.length >= 5 && values.length <= 15)
-    assert(values.every(n => n >= 10 && n <= 200))
+    assert(values.every(n => n >= -50 && n <= 200))
     const snapshot = structuredClone(m)
     g.refreshMarket(m, String(day), config, () => { throw new Error('should not reroll') })
     assert.deepEqual(m, snapshot)
@@ -129,8 +130,8 @@ test('blacksmith has only 5 plain rod types and 2 books; trading cannot restock 
   const p = funded(); g.buy(p, '铁钓鱼竿', 2, config)
   assert.equal(p.rods.length, 3); assert(p.rods.slice(1).every(r => r.unbreaking === 0 && r.luck === 0 && r.durability === 50))
   assert.throws(() => g.buy(p, '生鳕鱼', 1, config), /仅出售/)
-  assert.throws(() => g.sell(p, '木钓鱼竿', 1, market(), config), /装备中的/)
-  g.unequip(p); g.sell(p, '木钓鱼竿', 1, market(), config); assert.equal(p.rods.length, 2)
+  assert.match(g.sell(p, '木钓鱼竿', 1, market(), config), /已自动装备 铁钓鱼竿/)
+  assert.equal(p.rods.length, 2); assert.equal(p.equippedId, p.rods[0].id)
 })
 test('warehouse keeps rods first, one per row; regular items are two per row', () => {
   const p = funded(); g.buy(p, '铁钓鱼竿', 1, config)
@@ -172,7 +173,7 @@ test('v1 migration preserves wallet, equipped rod and inventory without another 
 test('custom loot names that overlap old aliases can still be sold by their exact name', () => {
   const c = Config({ lootTable: config.lootTable.map((item, i) => i === 0 ? { ...item, name: '鳕鱼', price: 23 } : item) })
   const p = funded(); p.inventory['鳕鱼'] = 3
-  assert.match(g.sell(p, '鳕鱼', 2, market(), c), /获得 22 绿宝石/)
+  assert.match(g.sell(p, '鳕鱼', 2, market(), c), /获得 46 绿宝石/)
   assert.equal(p.inventory['鳕鱼'], 1)
 })
 test('changing market settings regenerates quotes in the configured range on the same day', () => {

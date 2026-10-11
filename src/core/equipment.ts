@@ -14,15 +14,16 @@ export function unequip(player: Player): string {
   player.equippedId = null
   return '已卸下鱼竿。'
 }
-export function repair(player: Player, index: unknown): string {
+export function repair(player: Player, index: unknown, config?: Config): string {
   ensureIdle(player)
   const rod = rodAt(player, index)
   const max = maxDurability(rod)
   if (rod.durability >= max) throw new GameError('该鱼竿耐久已满，无需维修。', 'trade')
-  if (player.wallet < 200) throw new GameError('维修需要 200 绿宝石，当前余额不足。', 'trade')
-  player.wallet -= 200
+  const cost = config?.repairCost ?? 200
+  if (player.wallet < cost) throw new GameError(`维修需要 ${cost} 绿宝石，当前余额不足。`, 'trade')
+  player.wallet -= cost
   rod.durability = max
-  return `已维修 ${rod.name}，耐久恢复至 ${max}/${max}，消耗 200 绿宝石。`
+  return `已维修 ${rod.name}，耐久恢复至 ${max}/${max}，消耗 ${cost} 绿宝石。`
 }
 export function enchant(player: Player, index: unknown, name: string, config: Config, rng: Dice = dice): string {
   ensureIdle(player)

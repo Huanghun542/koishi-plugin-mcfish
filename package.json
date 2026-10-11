@@ -1,6 +1,6 @@
 {
   "name": "koishi-plugin-mcfish",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Minecraft 风格钓鱼小游戏：仓库、每日市场、铁匠铺和福布斯排行榜",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

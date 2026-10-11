@@ -20,7 +20,7 @@
   </tr>
   <tr>
     <td align="center"><a href="https://raw.githubusercontent.com/Huanghun542/koishi-plugin-mcfish/main/docs/images/warehouse.png"><img src="https://raw.githubusercontent.com/Huanghun542/koishi-plugin-mcfish/main/docs/images/warehouse.png" width="250" alt="仓库：鱼竿优先展示，物品每行两件"></a></td>
-    <td align="center"><a href="https://raw.githubusercontent.com/Huanghun542/koishi-plugin-mcfish/main/docs/images/market.png"><img src="https://raw.githubusercontent.com/Huanghun542/koishi-plugin-mcfish/main/docs/images/market.png" width="250" alt="每日市场：展示高价收购物品、价格和涨幅"></a></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/Huanghun542/koishi-plugin-mcfish/main/docs/images/market.png"><img src="https://raw.githubusercontent.com/Huanghun542/koishi-plugin-mcfish/main/docs/images/market.png" width="250" alt="每日市场：展示收购物品、价格和涨跌幅"></a></td>
     <td align="center"><a href="https://raw.githubusercontent.com/Huanghun542/koishi-plugin-mcfish/main/docs/images/blacksmith.png"><img src="https://raw.githubusercontent.com/Huanghun542/koishi-plugin-mcfish/main/docs/images/blacksmith.png" width="250" alt="铁匠铺：五种鱼竿和两种附魔书"></a></td>
   </tr>
 </table>
@@ -30,6 +30,11 @@
 <details>
   <summary>福布斯排行榜预览</summary>
   <p align="center"><a href="https://raw.githubusercontent.com/Huanghun542/koishi-plugin-mcfish/main/docs/images/leaderboard.png"><img src="https://raw.githubusercontent.com/Huanghun542/koishi-plugin-mcfish/main/docs/images/leaderboard.png" width="375" alt="福布斯排行榜：前十名玩家、脱敏 QQ 号与绿宝石余额"></a></p>
+</details>
+
+<details>
+  <summary>帮助菜单预览</summary>
+  <p align="center"><a href="https://raw.githubusercontent.com/Huanghun542/koishi-plugin-mcfish/main/docs/images/help.png"><img src="https://raw.githubusercontent.com/Huanghun542/koishi-plugin-mcfish/main/docs/images/help.png" width="375" alt="帮助菜单：全部指令、当前费用和简易玩法"></a></p>
 </details>
 
 ## 快速开始
@@ -57,12 +62,12 @@ npm install koishi-plugin-mcfish
 | `市场` / `铁匠铺` | 查看今日收购行情与固定商品 |
 | `购买 XX N` / `出售 XX N` | 购买或出售指定数量，省略数量默认为 1 |
 | `一键出售` | 出售普通物品，保留鱼竿、附魔书和稀有物品 |
-| `出售 钓鱼竿 N` | 按仓库顺序出售 N 根未装备鱼竿，回收价为 0；也可指定鱼竿名 |
+| `出售 钓鱼竿 N` | 出售仓库序号 N 的鱼竿，回收价为 0；装备中的鱼竿出售后自动装备下一根 |
 | `福布斯排行榜` | 当前平台绿宝石余额前 10 名，QQ 号脱敏，长名字以 `...` 省略 |
 | `装备 N` / `卸下鱼竿` | 更换或卸下当前鱼竿 |
 | `附魔 N 附魔书名称` | 为指定鱼竿附魔，例如 `附魔 1 耐久附魔书` |
-| `维修 N` | 花费 200 绿宝石修满指定鱼竿耐久 |
-| `钓鱼帮助` / `钓鱼源码` | 查看完整规则或开源地址 |
+| `维修 N` | 按配置费用修满指定鱼竿耐久，默认 200 绿宝石 |
+| `钓鱼帮助` / `钓鱼源码` | 查看图片帮助菜单或开源地址；帮助中的价格与配置同步 |
 
 ## 玩法说明
 
@@ -71,12 +76,12 @@ npm install koishi-plugin-mcfish
 | 每日钓鱼 | 每人每天 **50 次**，一批随机等待 **1–40 秒** |
 | 次数与耐久 | 按剩余次数与鱼竿耐久计算；耐久耗尽后保留鱼竿，可维修 |
 | 仓库容量 | 每页 **15 行**，最多 **2 页**；鱼竿一行一个，物品一行两个，超出的物品与鱼竿自动出售 |
-| 基础收购价 | 物品标价的 **1/2**，结果向下取整；鱼竿回收价为 **0** |
-| 每日市场 | 每天高价收购 **5–15 种**物品，在基础收购价上增加 **10%–200%** |
+| 基础收购价 | 表格价格 × 出售倍率，默认 **1 倍**，最终价格四舍五入；鱼竿回收价为 **0** |
+| 每日市场 | 每天 **5–15 种**物品行情变化，默认范围 **-50% 至 +200%**；跌幅绿色，涨幅红色 |
 | 铁匠铺 | 固定出售木、铁、金、钻石、下界合金五种满耐久无附魔鱼竿，以及两种附魔书 |
 | 每日刷新 | 次数与市场按 **Asia/Shanghai 零点**刷新 |
 
-例如生鳕鱼标价 10，基础收购价 5，涨幅 200% 时收购价为 15。附魔书按购买价的 **1/2** 回收，不参与市场涨价；稀有物品和附魔书可通过 `出售 XX N` 手动出售。仓库溢出仍按容量规则自动出售。
+例如生鳕鱼表格价格 5，1 倍时基础收购价为 5；涨幅 200% 时卖 15，跌幅 50% 时价格 2.5 四舍五入为 3。附魔书购买价为表格价格的两倍，回收价不超过购买价的 **1/2**，不参与市场涨跌。稀有物品和附魔书可手动出售，仓库溢出仍按容量规则自动出售。
 
 排行榜仅统计绿宝石余额，不包含仓库估值。旧存档的用户名会在玩家下次使用指令时更新。
 
@@ -93,11 +98,15 @@ npm install koishi-plugin-mcfish
 
 ## 配置
 
-在 Koishi 控制台直接编辑四列奖池表格：**物品名称、物品价格、抽取权重、是否稀有**。普通物品名称默认白色，稀有物品默认金色，可通过调色盘修改。
+在 Koishi 控制台直接编辑四列奖池表格：**物品名称、物品价格、抽取权重、是否稀有**。小数物价先四舍五入为整数后使用，行情计算后的单件价格也四舍五入。普通物品名称默认白色，稀有物品默认金色，可通过调色盘修改。
 
-每日次数、等待时间、市场收购范围、附魔费用与附魔书消耗均可配置。文字消息撤回默认关闭；勾选后，在整个流程结束 **5 秒后** 撤回对应消息，需要适配器支持。
+每日次数、等待时间、出售倍率、市场涨跌范围、维修与附魔费用均可配置。文字消息撤回默认关闭；勾选后，在整个流程结束 **5 秒后** 撤回对应消息，需要适配器支持。
 
-默认物价与稀有度见 [经济设定](docs/economy.md)。从 2.0 更新时，已保存的旧奖池需在控制台恢复默认值，才能应用新版定价。
+**从旧版更新到 2.2：** 奖池价格现在直接表示 1 倍下的收购价。默认奖池请恢复默认值；自定义奖池请将旧价格减半，再使用 1 倍出售倍率，以维持原收购价。若保存过旧的最低涨幅，需手动改为 `-50`。
+
+新增图标放入插件安装目录的 `assets/items/物品名称.png`，文件名与奖池物品名完全一致。Docker 常见路径为 `/koishi/node_modules/koishi-plugin-mcfish/assets/items/`。建议从 MC 百科下载透明物品图标，或用 AI 绘制；推荐 64×64 / 128×128 的透明 PNG，大小不超过 200 KB。替换后重启 Koishi，更新插件前保留自定义图标副本。
+
+完整默认物价与稀有度见 [经济设定](docs/economy.md)。
 
 ## 致谢与许可
 

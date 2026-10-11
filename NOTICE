@@ -1,5 +1,5 @@
 koishi-plugin-mcfish
-Copyright (C) 2026 Huanghun542. Modified 2026-10-11.
+Copyright (C) 2026 Huanghun542. Modified 2026-10-12.
 
 Gameplay adapted from the mcfish plugin in FloatTech/ZeroBot-Plugin (Go, rules 5.6.2).
 Original plugin author: fangliuyu; with contributions from the upstream project.
@@ -23,6 +23,11 @@ Changes in v2.1: rebalanced default loot values and rarity; half-price buyback;
 books excluded from market premiums; one-click sale preserves books and rares;
 zero-value rod disposal; persistent platform-local top-ten balance ranking with
 masked user IDs, updated usernames and warehouse-background rendering.
+Changes in v2.2: configurable repair cost and sale multiplier; previous buyback
+quotes become the default 1x basis; market decreases down to -50%; indexed rod
+sales with automatic re-equipment; image help on the supplied new background;
+rounded cards, red/green quotes, shop durability details and image watermark.
+Final item quotes are rounded to the nearest whole emerald, with .5 rounded up.
 Removed shared trading stock, taxes, curses, coupons, synthesis and special tools
 from the current game rules. Legacy gear and quantities are preserved on migration.
 

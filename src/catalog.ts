@@ -12,7 +12,7 @@ export const RODS: RodDefinition[] = [
 export const BOOKS = ['耐久附魔书', '海之眷顾附魔书'] as const
 export const DURABILITY_BONUS = [0, 30, 70, 120]
 export const DOUBLE_PERCENT = [0, 1, 3, 5]
-export const DEFAULT_LOOT: LootItem[] = [
+export const LEGACY_LOOT_V21: LootItem[] = [
   { name: '生鳕鱼', price: 10, weight: 69, rare: false },
   { name: '鲑鱼', price: 20, weight: 20, rare: false },
   { name: '热带鱼', price: 30, weight: 6, rare: false },
@@ -48,6 +48,8 @@ export const DEFAULT_LOOT: LootItem[] = [
   { name: '耐久附魔书', price: 200, weight: 2, rare: true },
   { name: '海之眷顾附魔书', price: 300, weight: 1, rare: true },
 ]
+// Use the former buyback quotes as the new 1x basis; do not double player income.
+export const DEFAULT_LOOT: LootItem[] = LEGACY_LOOT_V21.map(item => ({ ...item, price: Math.floor(item.price / 2) }))
 export function isEnchantBook(name: string): boolean {
   return name.includes('附魔书') || (BOOKS as readonly string[]).includes(normalizeName(name))
 }
