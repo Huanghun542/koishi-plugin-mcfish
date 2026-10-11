@@ -4,9 +4,9 @@ import { SOURCE_URL } from './catalog'
 import { Config, RecallTarget, validateConfig } from './config'
 import { GameRepository } from './database'
 import { buy, dayKey, enchant, equip, finishFishing, fishingText, GameError, Market, overflowText,
-  Player, repair, salePrice, sell, sellAll, shopItems, startFishing, trimOverflow, unequip } from './game'
+  leaderboardText, Player, repair, salePrice, sell, sellAll, shopItems, startFishing, trimOverflow, unequip } from './game'
 import { MessageFlow } from './core/messages'
-import { marketHtml, renderPages, shopHtml, warehouseHtml, warehouseText } from './render'
+import { leaderboardHtml, marketHtml, renderPages, shopHtml, warehouseHtml, warehouseText } from './render'
 export { Config } from './config'
 export const name = 'mcfish'
 export const inject = { required: ['database'], optional: ['puppeteer'] }
@@ -15,12 +15,15 @@ export function rules(config: Config): string {
   return `MC 钓鱼模拟器
 开始N次钓鱼 / 钓鱼（一次）
 仓库 / 市场 / 铁匠铺 / 钓鱼钱包
+福布斯排行榜
 购买 物品名称 数量 / 出售 物品名称 数量 / 一键出售
+出售 钓鱼竿 数量（无回收价值，装备中的鱼竿须先卸下）
 装备 N / 卸下鱼竿 / 维修 N / 附魔 N 附魔书名称
 附魔书：耐久附魔书、海之眷顾附魔书
 
 新用户获得木钓鱼竿和 100 绿宝石。每日最多 ${config.dailyLimit} 次，一批随机等待 1 至 ${config.maxWaitSeconds} 秒；次数与市场按 ${config.timezone} 零点刷新。
-仓库最多两页：鱼竿一行一个，物品一行两个，超出容量按当日收购价自动出售。一键出售保留鱼竿。
+仓库最多两页：鱼竿一行一个，物品一行两个，超出容量按当日收购价自动出售。一键出售保留鱼竿、附魔书与稀有物品。
+基础收购价为标价的一半；鱼竿回收价为零，附魔书按半价回收且不参与涨价。
 市场每日高价收购 ${config.marketMinItems} 至 ${config.marketMaxItems} 种物品，涨幅 ${config.marketMinIncrease}% 至 ${config.marketMaxIncrease}%。
 维修消耗 200 绿宝石并修满耐久。附魔成功率 50%，每次消耗 ${config.enchantCost} 绿宝石${config.consumeEnchantBook ? '和一本对应附魔书' : ''}，失败不返还，最高三级。
 耐久附魔额外增加 30/70/120 耐久；海之眷顾增加 1%/3%/5% 的双倍产出概率。
@@ -42,7 +45,7 @@ export function apply(ctx: Context, config: Config) {
   }
   async function scheduleRefresh() {
     if (disposed) return
-    try { await repository.refresh() } catch (error) { ctx.logger('mcfish').error(error) }
+    try { await repository.prepareLeaderboard(); await repository.refresh() } catch (error) { ctx.logger('mcfish').error(error) }
     const now = Date.now(), today = dayKey(new Date(now), config.timezone)
     let low = now, high = now + 26 * 3600000
     while (high - low > 1) { const mid = Math.floor((low + high) / 2); if (dayKey(new Date(mid), config.timezone) === today) low = mid; else high = mid }
@@ -64,7 +67,7 @@ export function apply(ctx: Context, config: Config) {
       const recovered = await repository.run(id, (p, m) => {
         const result = finishFishing(p)
         return { result, overflow: trimOverflow(p, m, config), pending: p.pending }
-      })
+      }, session.username && session.username !== session.userId ? session.username : undefined)
       if (recovered.result) await flow.send(`上次钓鱼已完成。\n${fishingText(recovered.result)}`, 'result')
       await flow.send(overflowText(recovered.overflow), 'trade')
       if (recovered.pending) throw new GameError(`正在钓鱼，约 ${Math.max(1, Math.ceil((recovered.pending.finishAt - Date.now()) / 1000))} 秒后完成。`, 'waiting')
@@ -98,6 +101,17 @@ export function apply(ctx: Context, config: Config) {
   command('market', '查看今日收购行情').alias('市场', '钓鱼市场', '钓鱼看板').action(({ session }) => guard(session, (id, flow) => view(id, flow, 'market', '')))
   command('shop', '查看铁匠铺').alias('铁匠铺', '工匠铺', '钓鱼商店').action(({ session }) => guard(session, (id, flow) => view(id, flow, 'shop', '')))
   command('wallet', '查看绿宝石余额').alias('钓鱼钱包').action(({ session }) => guard(session, async (id, flow) => { await flow.send(await repository.run(id, p => `当前余额：${p.wallet} 绿宝石。`)) }))
+  command('leaderboard', '查看绿宝石余额前十名').alias('福布斯排行榜')
+    .action(({ session }) => guard(session, async (_, flow) => {
+      const entries = await repository.leaderboard(session!.platform)
+      if (config.images && ctx.puppeteer) {
+        try {
+          for (const image of await renderPages(ctx, leaderboardHtml(entries))) await flow.send(image, 'notice', true)
+          return
+        } catch (error) { ctx.logger('mcfish').warn('排行榜渲染失败，使用文字输出：%s', error) }
+      }
+      await flow.send(leaderboardText(entries))
+    }))
   ctx.command('mcfish.fish [次数:string]', '开始钓鱼').alias('钓鱼')
     .shortcut(/^开始(?:(\d+)次)?钓鱼$/, { args: ['$1'] })
     .shortcut(/^进行(?:(\d+)次)?钓鱼$/, { args: ['$1'] })
@@ -123,7 +137,7 @@ export function apply(ctx: Context, config: Config) {
     .action(({ session, options }, item, quantity) => guard(session, (id, flow) => mutation(id, flow, p => buy(p, item, quantity, config)), options))
   ctx.command('mcfish.sell <物品:string> [数量:string]', '出售仓库物品').alias('出售')
     .action(({ session, options }, item, quantity) => guard(session, (id, flow) => mutation(id, flow, (p, m) => sell(p, item, quantity, m, config)), options))
-  command('sell-all', '出售全部非鱼竿物品').alias('一键出售')
+  command('sell-all', '出售普通物品，保留鱼竿、附魔书和稀有物品').alias('一键出售')
     .action(({ session }) => guard(session, (id, flow) => mutation(id, flow, (p, m) => sellAll(p, m, config))))
   ctx.command('mcfish.equip <序号:string>', '按仓库序号装备鱼竿').alias('装备')
     .action(({ session, options }, index) => guard(session, (id, flow) => mutation(id, flow, p => equip(p, index)), options))

@@ -99,7 +99,7 @@ test('luck levels use exact 1%, 3%, 5% boundaries; doubling consumes one cast an
 test('zero-weight items are never drawn and configured prices are used', () => {
   const c = Config({ lootTable: config.lootTable.map((i, n) => ({ ...i, weight: n === 1 ? 1 : 0, price: 77 })) })
   const p = funded(), result = g.startFishing(p, 20, c, 0, () => 0)
-  assert.deepEqual(result.drops, { 鲑鱼: 20 }); assert.equal(g.salePrice('鲑鱼', market(), c), 77)
+  assert.deepEqual(result.drops, { 鲑鱼: 20 }); assert.equal(g.salePrice('鲑鱼', market(), c), 38)
 })
 test('markets choose 5 to 15 distinct items with 10% to 200% increases and stable daily quotes', () => {
   for (let day = 1; day <= 60; day++) {
@@ -120,9 +120,9 @@ test('markets choose 5 to 15 distinct items with 10% to 200% increases and stabl
 test('100% increase doubles prices, other items sell at base value, bulk sale keeps all rods', () => {
   const p = funded(), m = { day: 'day', increases: { 生鳕鱼: 100 } }
   g.addItem(p, '生鳕鱼', 2); g.addItem(p, '骨头', 3)
-  assert.equal(g.salePrice('生鳕鱼', m, config), 20)
-  assert.match(g.sellAll(p, m, config), /70 绿宝石/)
-  assert.equal(p.wallet, 100070); assert.equal(p.rods.length, 1); assert.deepEqual(p.inventory, {})
+  assert.equal(g.salePrice('生鳕鱼', m, config), 10)
+  assert.match(g.sellAll(p, m, config), /26 绿宝石/)
+  assert.equal(p.wallet, 100026); assert.equal(p.rods.length, 1); assert.deepEqual(p.inventory, {})
 })
 test('blacksmith has only 5 plain rod types and 2 books; trading cannot restock it', () => {
   assert.equal(g.shopItems(config).length, 7)
@@ -144,7 +144,7 @@ test('overflow after the second page is sold at current quotes with correct odd-
   g.addItem(p, '生鳕鱼', 2); g.addItem(p, '鲑鱼', 1); g.addItem(p, '骨头', 4)
   const m = { day: 'day', increases: { 骨头: 100 } }, before = p.wallet
   const overflow = g.trimOverflow(p, m, config)
-  assert.equal(overflow.earned, 80); assert.equal(p.wallet, before + 80)
+  assert.equal(overflow.earned, 16); assert.equal(p.wallet, before + 16)
   assert.equal(p.inventory['生鳕鱼'], 2); assert.equal(p.inventory['骨头'], undefined)
   assert.equal(g.inventoryPages(p).length, 2); assert.equal(g.inventoryRows(p).length, 30)
   assert.equal(g.trimOverflow(p, m, config).count, 0)
@@ -152,7 +152,7 @@ test('overflow after the second page is sold at current quotes with correct odd-
 test('overflow rods are sold too, while sell-all itself never sells rods', () => {
   const p = funded(); p.rods = Array.from({ length: 31 }, () => g.newRod('木钓鱼竿')); p.equippedId = p.rods[0].id
   const before = p.wallet, overflow = g.trimOverflow(p, market(), config)
-  assert.equal(overflow.count, 1); assert.equal(p.rods.length, 30); assert.equal(p.wallet, before + 100)
+  assert.equal(overflow.count, 1); assert.equal(p.rods.length, 30); assert.equal(p.wallet, before)
 })
 test('calendar dates include month and year, reset once at Shanghai midnight', () => {
   const p = funded(); p.day = '2026-09-11'; p.casts = 50
@@ -172,7 +172,7 @@ test('v1 migration preserves wallet, equipped rod and inventory without another 
 test('custom loot names that overlap old aliases can still be sold by their exact name', () => {
   const c = Config({ lootTable: config.lootTable.map((item, i) => i === 0 ? { ...item, name: '鳕鱼', price: 23 } : item) })
   const p = funded(); p.inventory['鳕鱼'] = 3
-  assert.match(g.sell(p, '鳕鱼', 2, market(), c), /获得 46 绿宝石/)
+  assert.match(g.sell(p, '鳕鱼', 2, market(), c), /获得 22 绿宝石/)
   assert.equal(p.inventory['鳕鱼'], 1)
 })
 test('changing market settings regenerates quotes in the configured range on the same day', () => {

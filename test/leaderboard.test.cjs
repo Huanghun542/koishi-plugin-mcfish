@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const { App } = require('koishi')
+const sqlite = require('@koishijs/plugin-database-sqlite').default
+const { Config } = require('../lib/config')
+const { GameRepository } = require('../lib/database')
+const g = require('../lib/game')
+const render = require('../lib/render')
+const id = (platform, userId) => JSON.stringify([platform, userId])
+test('QQ and short identifiers are masked without exposing a complete identifier', () => {
+  assert.equal(g.maskUserId('3339999053'), '333****9053')
+  assert.equal(g.maskUserId('12345678'), '123****5678')
+  assert.equal(g.maskUserId('12345'), '1****5')
+  assert.equal(g.maskUserId('12'), '****')
+  assert.equal(g.maskUserId(''), '****')
+  assert.equal(g.maskUserId('alice'), 'a****e')
+})
+test('long usernames use literal dots and do not split emoji graphemes', () => {
+  assert.equal(g.truncateUsername('黄昏'), '黄昏')
+  assert.equal(g.truncateUsername('名字特别特别特别特别特别长'), '名字特别特别...')
+  assert(g.truncateUsername('👨‍👩‍👧‍👦'.repeat(20)).endsWith('...'))
+  assert(!g.cleanUsername('黄昏\n\u202e名字').includes('\n'))
+  assert.equal(g.cleanUsername(''), '未命名玩家')
+})
+test('leaderboard shows only the top ten balances on this platform, with deterministic ties', async () => {
+  const app = new App(); app.plugin(sqlite, { path: ':memory:' })
+  const repo = new GameRepository(app, Config({})); await app.start()
+  try {
+    for (let n = 1; n <= 12; n++) await repo.run(id('qq', '333900' + String(n).padStart(4, '0')), p => { p.wallet = n * 100 }, '玩家' + n)
+    await repo.run(id('other', 'unrelated'), p => { p.wallet = 999999 }, '其他平台玩家')
+    const top = await repo.leaderboard('qq')
+    assert.equal(top.length, 10); assert.equal(top[0].wallet, 1200); assert.equal(top[9].wallet, 300)
+    assert.deepEqual(top.map(entry => entry.rank), [1,2,3,4,5,6,7,8,9,10])
+    assert(top.every(entry => entry.maskedId.includes('****')))
+    assert(!JSON.stringify(top).includes('3339000012')); assert(!JSON.stringify(top).includes('其他平台玩家'))
+    await repo.run(id('qq', '3339000011'), p => { p.wallet = 1200 }, '名字已更新')
+    const tied = await repo.leaderboard('qq')
+    assert.equal(tied[0].username, '名字已更新'); assert.equal(tied[1].username, '玩家12')
+    await repo.run(id('qq', '3339000011'), p => { p.wallet = 0 })
+    assert.equal((await repo.leaderboard('qq'))[0].username, '玩家12')
+  } finally { await app.stop() }
+})
+test('old saves are backfilled from their actual wallet, and failed changes do not alter rank', async () => {
+  const app = new App(); app.plugin(sqlite, { path: ':memory:' })
+  const repo = new GameRepository(app, Config({})); await app.start()
+  try {
+    const legacyId = id('qq', '3339999053'), player = g.createPlayer(legacyId); player.wallet = 9876
+    await app.database.upsert('mcfish_player', [{ id: legacyId, state: player }])
+    const top = await repo.leaderboard('qq')
+    assert.equal(top[0].wallet, 9876); assert.equal(top[0].username, '未命名玩家')
+    assert.equal(top[0].maskedId, '333****9053')
+    await assert.rejects(repo.run(legacyId, p => { p.wallet = 0; throw Error('rollback') }), /rollback/)
+    assert.equal((await repo.leaderboard('qq'))[0].wallet, 9876)
+    await repo.run(legacyId, p => p, '黄昏')
+    assert.equal((await repo.leaderboard('qq'))[0].username, '黄昏')
+  } finally { await app.stop() }
+})
+test('ranking text and image escape names and use the warehouse background with one row per user', () => {
+  const entries = Array.from({ length: 10 }, (_, n) => ({ rank: n + 1, username: n ? '玩家' + n : '<script>很长很长很长名字', maskedId: '333****9053', wallet: 114514 - n }))
+  const html = render.leaderboardHtml(entries)[0]
+  assert(!html.includes('<script>')); assert(html.includes('&lt;script&gt;'))
+  assert.equal((html.match(/class="rank-row/g) || []).length, 10)
+  assert(html.includes('NO.1')); assert(html.includes('NO.10')); assert(html.includes('QQ号'))
+  const text = g.leaderboardText([{ rank: 1, username: '黄昏', maskedId: '333****9053', wallet: 114514 }])
+  assert(text.includes('NO.1 | 黄昏 | 333****9053 | 114514'))
+  assert(!g.leaderboardText(entries).includes('<script>'))
+  assert(g.leaderboardText(entries).includes('&lt;script&gt;'))
+  assert(render.leaderboardHtml([])[0].includes('暂无玩家数据'))
+})

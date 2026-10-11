@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { Schema } from 'koishi'
-import { DEFAULT_LOOT, LootItem, RODS } from './catalog'
+import { DEFAULT_LOOT, isEnchantBook, LootItem, RODS } from './catalog'
 export type RecallTarget = 'result' | 'equipment' | 'damage' | 'waiting' | 'trade' | 'notice'
 export interface Config {
   lootTable: LootItem[]; normalColor: string; rareColor: string
@@ -16,7 +16,7 @@ export const Config: Schema<Config> = Schema.intersect([
       price: Schema.number().min(0).max(1000000000).step(1).required().description('物品价格'),
       weight: Schema.number().min(0).max(1000000).step(1).required().description('抽取权重'),
       rare: Schema.boolean().default(false).description('是否稀有'),
-    })).role('table').default(DEFAULT_LOOT).description('钓鱼物品列表（权重为 0 时不参与抽取）。'),
+    })).role('table').default(DEFAULT_LOOT).description('钓鱼物品列表：价格为标价，基础收购价为标价的一半；权重 0 不参与抽取。'),
     normalColor: Schema.string().role('color').default('#ffffff').description('普通物品名称颜色'),
     rareColor: Schema.string().role('color').default('#ffd700').description('稀有物品名称颜色'),
   }).description('物品与颜色'),
@@ -28,7 +28,7 @@ export const Config: Schema<Config> = Schema.intersect([
   Schema.object({
     marketMinIncrease: Schema.number().min(1).max(10000).step(1).default(10).description('最低收购涨幅（%）'),
     marketMaxIncrease: Schema.number().min(1).max(10000).step(1).default(200).description('最高收购涨幅（%）'),
-    marketMinItems: Schema.number().min(1).max(1000).step(1).default(5).description('每日最少高价收购物品种类'),
+    marketMinItems: Schema.number().min(1).max(1000).step(1).default(5).description('每日最少高价收购物品种类（附魔书不进入涨价名单）'),
     marketMaxItems: Schema.number().min(1).max(1000).step(1).default(15).description('每日最多高价收购物品种类'),
   }).description('市场'),
   Schema.object({
@@ -45,7 +45,7 @@ export const Config: Schema<Config> = Schema.intersect([
       Schema.const('notice').description('其他文字提示'),
     ])).role('checkbox').default([]).description('勾选后在流程结束时撤回对应文字消息（需适配器支持）'),
     recallDelaySeconds: Schema.number().min(0).max(3600).step(1).default(5).description('流程结束后延迟撤回秒数'),
-    images: Schema.boolean().default(true).description('使用 AstrBot 素材绘制仓库、市场和铁匠铺（需 Puppeteer）。'),
+    images: Schema.boolean().default(true).description('使用 AstrBot 素材绘制仓库、市场、铁匠铺和排行榜（需 Puppeteer）。'),
   }).description('消息与界面'),
 ])
 export function validateConfig(config: Config) {
@@ -57,7 +57,7 @@ export function validateConfig(config: Config) {
   if (config.lootTable.some(item => !Number.isSafeInteger(item.weight) || !Number.isSafeInteger(item.price))) throw new Error('mcfish：物品价格和抽取权重必须为整数。')
   if (names.some(name => RODS.some(rod => rod.name === name))) throw new Error('mcfish：鱼竿由铁匠铺固定供应，不得与钓鱼物品重名。')
   if (config.marketMinIncrease > config.marketMaxIncrease || config.marketMinItems > config.marketMaxItems) throw new Error('mcfish：市场最低值不得超过最高值。')
-  if (names.length < config.marketMinItems) throw new Error('mcfish：物品种类不能少于市场最少收购种类。')
+  if (names.filter(name => !isEnchantBook(name)).length < config.marketMinItems) throw new Error('mcfish：非附魔书物品种类不能少于市场最少收购种类。')
   try { new Intl.DateTimeFormat('en', { timeZone: config.timezone }).format() }
   catch { throw new Error(`mcfish：无效时区 ${config.timezone}`) }
   const color = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%]+\)|[a-z]+)$/i

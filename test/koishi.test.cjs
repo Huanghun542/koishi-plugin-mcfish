@@ -51,8 +51,8 @@ test('purchase, indexed equipment, enchant, repair and sell-all work without con
   await seed('bob', p => { p.rods[1].durability = 1; p.inventory['生鳕鱼'] = 10 })
   await bob.shouldReply('维修 2', /耐久恢复至/)
   await bob.shouldReply('出售 生鳕鱼 2', /已出售 生鳕鱼 ×2/)
-  await bob.shouldReply('一键出售', /鱼竿已保留/)
-  const p = await state('bob'); assert.equal(p.rods.length, 3); assert.deepEqual(p.inventory, {})
+  await bob.shouldReply('一键出售', /附魔书和稀有物品已保留/)
+  const p = await state('bob'); assert.equal(p.rods.length, 3); assert.deepEqual(p.inventory, { 耐久附魔书: 1 })
 })
 test('unavailable equipment and invalid commands leave state unchanged', async () => {
   await bob.shouldReply('卸下鱼竿', /已卸下/)
@@ -80,4 +80,20 @@ test('expired persisted fishing recovers exactly once on the next command', asyn
   await bob.shouldReply('仓库', [/上次钓鱼已完成/, /生鳕鱼 ×2/])
   await bob.shouldReply('仓库', /生鳕鱼 ×2/)
   assert.equal((await state('bob')).pending, null)
+})
+test('generic rod sale is reachable in Chinese and does not increase wallet', async () => {
+  const before = await state('bob')
+  await bob.shouldReply('出售 钓鱼竿 1', /无回收价值，获得 0 绿宝石/)
+  const after = await state('bob')
+  assert.equal(after.wallet, before.wallet); assert.equal(after.rods.length, before.rods.length - 1)
+  assert.equal(after.equippedId, before.equippedId)
+})
+test('福布斯排行榜 displays updated names, masked identifiers and descending balances', async () => {
+  bob.event.user.name = '黄昏'
+  await seed('bob', p => { p.wallet = 114514 })
+  await bob.shouldReply('钓鱼钱包', /114514/)
+  const reply = (await alice.receive('福布斯排行榜')).join('\n')
+  assert(reply.includes('排名 | 用户名 | QQ号 | 绿宝石数量'))
+  assert(reply.includes('NO.1 | 黄昏 | b****b | 114514'))
+  assert(!reply.includes('"bob"'))
 })

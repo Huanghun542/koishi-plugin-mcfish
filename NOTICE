@@ -19,6 +19,10 @@ weighted loot table and colors; capped daily casts; 1-40 second batch wait;
 two-page warehouse with overflow sale; daily premium buyback; fixed blacksmith;
 two enchantments (50%, maximum III); repairs; selective end-of-flow message
 recall; persistent fishing recovery; v1 Koishi save migration.
+Changes in v2.1: rebalanced default loot values and rarity; half-price buyback;
+books excluded from market premiums; one-click sale preserves books and rares;
+zero-value rod disposal; persistent platform-local top-ten balance ranking with
+masked user IDs, updated usernames and warehouse-background rendering.
 Removed shared trading stock, taxes, curses, coupons, synthesis and special tools
 from the current game rules. Legacy gear and quantities are preserved on migration.
 

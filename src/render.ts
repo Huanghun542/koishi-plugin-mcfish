@@ -5,7 +5,7 @@ import { Context, h } from 'koishi'
 import type {} from 'koishi-plugin-puppeteer'
 import type { Config } from './config'
 import { BOOKS } from './catalog'
-import { inventoryPages, maxDurability, Player, Market, salePrice, shopItems } from './game'
+import { inventoryPages, LeaderboardEntry, maxDurability, Player, Market, salePrice, shopItems, truncateUsername } from './game'
 
 export const WIDTH = 751, HEIGHT = 1238
 const root = path.resolve(__dirname, '../assets')
@@ -34,7 +34,7 @@ function nameHtml(name: string, config: Config) {
   const rare = config.lootTable.find(item => item.name === name)?.rare ?? BOOKS.includes(name as any)
   return `<b style="color:${escapeHtml(rare ? config.rareColor : config.normalColor)}">${escapeHtml(name)}</b>`
 }
-function card(title: string, wallet: number, background: string, body: string, footer: string): string {
+function card(title: string, wallet: number | null, background: string, body: string, footer: string, extraStyle = ''): string {
   return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><style>
     @font-face{font-family:MC;src:url('${asset('fonts/font.ttf')}')}*{box-sizing:border-box}
     body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;font-family:MC,'Microsoft YaHei',sans-serif}
@@ -46,7 +46,8 @@ function card(title: string, wallet: number, background: string, body: string, f
     .spacer{flex:1;min-width:0}.icon{width:36px;height:36px;flex-shrink:0;object-fit:contain;image-rendering:pixelated}.copy{min-width:0;flex:1}b{display:block;font-size:18px;line-height:21px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:normal}
     small{display:block;color:#d3e5e8;font-size:13px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.number{color:#a9d4db;font-size:15px;flex-shrink:0}.tag{color:#a4f7c4;font-size:13px;margin-left:10px}
     footer{position:absolute;left:147px;top:1030px;width:470px;padding:9px 12px;border-radius:3px;background:rgba(15,43,55,.85);text-align:center;color:#d3e5e8;font-size:15px;line-height:23px}
-  </style></head><body><article><h1>${escapeHtml(title)}</h1><div class="balance" style="font-size:${String(wallet).length > 9 ? 18 : 25}px">${wallet}${icon('绿宝石')}</div><div class="rows">${body}</div><footer>${escapeHtml(footer).replace(/\n/g, '<br>')}</footer></article></body></html>`
+    ${extraStyle}
+  </style></head><body><article><h1>${escapeHtml(title)}</h1>${wallet === null ? '' : `<div class="balance" style="font-size:${String(wallet).length > 9 ? 18 : 25}px">${wallet}${icon('绿宝石')}</div>`}<div class="rows">${body}</div><footer>${escapeHtml(footer).replace(/\n/g, '<br>')}</footer></article></body></html>`
 }
 export function warehouseHtml(player: Player, market: Market, config: Config, username: string): string[] {
   const pages = inventoryPages(player)
@@ -62,7 +63,7 @@ export function marketHtml(player: Player, market: Market, config: Config): stri
   const entries = Object.entries(market.increases)
   const pages: string[] = []
   for (let start = 0; start < entries.length; start += 15) {
-    const body = entries.slice(start, start + 15).map(([name, increase]) => `<div class="row"><div class="entry">${icon(name)}<div class="copy">${nameHtml(name, config)}<small>基础 ${config.lootTable.find(item => item.name === name)?.price || 0}　今日收购 ${salePrice(name, market, config)} 绿宝石　涨幅 +${increase}%</small></div></div></div>`).join('')
+    const body = entries.slice(start, start + 15).map(([name, increase]) => `<div class="row"><div class="entry">${icon(name)}<div class="copy">${nameHtml(name, config)}<small>基础收购 ${salePrice(name, { day: '', increases: {} }, config)}　今日收购 ${salePrice(name, market, config)} 绿宝石　涨幅 +${increase}%</small></div></div></div>`).join('')
     pages.push(card('每日收购市场', player.wallet, '市场背景', body, `${market.day} · ${config.timezone} 零点刷新\n出售 物品名称 数量 · 一键出售`))
   }
   return pages
@@ -70,6 +71,18 @@ export function marketHtml(player: Player, market: Market, config: Config): stri
 export function shopHtml(player: Player, config: Config): string[] {
   const body = shopItems(config).map(item => `<div class="row"><div class="entry">${icon(item.name)}<div class="copy">${nameHtml(item.name, config)}<small>${item.price} 绿宝石 / 件</small></div></div></div>`).join('')
   return [card('铁匠铺', player.wallet, '工匠铺背景', body, '鱼竿均为无附魔、满耐久\n购买 物品名称 数量 · 维修 N')]
+}
+export function leaderboardHtml(entries: LeaderboardEntry[]): string[] {
+  const body = `<div class="rank-head"><span>排名</span><span>用户名</span><span>QQ号</span><span>绿宝石数量</span></div>`
+    + entries.slice(0, 10).map(entry => `<div class="rank-row${entry.rank <= 3 ? ' podium' : ''}"><span class="rank">NO.${entry.rank}</span><span class="username">${escapeHtml(truncateUsername(entry.username, 15))}</span><span class="qq">${escapeHtml(entry.maskedId)}</span><span class="amount" style="font-size:${String(entry.wallet).length > 10 ? 13 : 19}px">${entry.wallet}</span></div>`).join('')
+    + (entries.length ? '' : '<div class="rank-empty">暂无玩家数据</div>')
+  return [card('福布斯排行榜', null, '仓库背景', body, '按当前平台绿宝石余额排名 · 前 10 名\n仅统计余额，不包含仓库估值', `
+    .rank-head,.rank-row{display:grid;grid-template-columns:65px minmax(0,1fr) 145px 142px;align-items:center;column-gap:0;padding:0 9px}
+    .rank-head{height:48px;margin-bottom:9px;color:#204758;font-size:17px;border-bottom:2px solid #759ba6}
+    .rank-row{height:61px;margin-bottom:9px;border:1px solid rgba(150,222,237,.45);border-radius:3px;background:rgba(15,43,55,.85);color:#eff9f9;font-size:18px}
+    .rank-row span{min-width:0;white-space:nowrap;overflow:hidden}.rank{color:#a9d4db}.podium .rank{color:#ffd700}.username{text-overflow:ellipsis}
+    .qq{font-size:17px;color:#bbd9df}.amount{text-align:right;color:#a4f7c4;font-variant-numeric:tabular-nums}.rank-head span:last-child{text-align:right}.rank-empty{padding:30px;text-align:center;color:#204758}
+  `)]
 }
 export function warehouseText(player: Player, market: Market, config: Config): string {
   return [`仓库 · 绿宝石 ${player.wallet} · 今日钓鱼 ${player.casts}/${config.dailyLimit}`,
