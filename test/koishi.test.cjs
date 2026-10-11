@@ -5,165 +5,79 @@ const { App } = require('koishi')
 const sqlite = require('@koishijs/plugin-database-sqlite').default
 const mock = require('@koishijs/plugin-mock').default
 const plugin = require('../lib/index')
-const g = require('../lib/game')
 const { GameRepository } = require('../lib/database')
-const config = plugin.Config({ maxWaitSeconds: 0, cooldownSeconds: 0, images: false, promptTimeoutSeconds: 5 })
-let app, repository, alice, bob, mockFork
+const g = require('../lib/game')
+const config = plugin.Config({ images: false, maxWaitSeconds: 0 })
 const id = user => JSON.stringify(['mock', user])
-const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
-async function state(user = 'alice') {
-  const [row] = await app.database.get('mcfish_player', { id: id(user) })
-  return row?.state
-}
-async function eventually(predicate) {
-  for (let i = 0; i < 100; i++) { if (await predicate()) return; await pause(10) }
-  assert.fail('operation did not settle within 1 second')
-}
-async function seed(user, callback) { return repository.run(id(user), callback) }
-
+let app, alice, bob, repo, mockFork
+const state = async user => (await app.database.get('mcfish_player', { id: id(user) }))[0]?.state
+const seed = (user, fn) => repo.run(id(user), fn)
 before(async () => {
   app = new App({ prefix: '', autoAuthorize: 1 })
-  app.plugin(sqlite, { path: ':memory:' })
-  mockFork = app.plugin(mock)
-  app.plugin(plugin, config)
-  await app.start()
-  await app.mock.initUser('alice')
-  await app.mock.initUser('bob')
-  alice = app.mock.client('alice')
-  bob = app.mock.client('bob')
-  repository = new GameRepository(app, config)
+  app.plugin(sqlite, { path: ':memory:' }); mockFork = app.plugin(mock); app.plugin(plugin, config)
+  await app.start(); await app.mock.initUser('alice'); await app.mock.initUser('bob')
+  alice = app.mock.client('alice'); bob = app.mock.client('bob'); repo = new GameRepository(app, config)
 })
 after(async () => { await mockFork?.dispose(); await app?.stop() })
 
-test('Koishi loads the plugin, exposes Chinese rules and persists an independent wallet', async () => {
-  await alice.shouldReply('查看钓鱼规则', /MC 钓鱼模拟器/)
-  await alice.shouldReply('钓鱼钱包', /200 金币/)
-  await alice.shouldReply('钓鱼钱包', /200 金币/)
-  assert.equal((await state()).wallet, 200)
+test('Chinese help, wallet, warehouse, market and blacksmith are usable in Koishi', async () => {
+  await alice.shouldReply('钓鱼帮助', /MC 钓鱼模拟器/)
+  await alice.shouldReply('钓鱼钱包', /100 绿宝石/)
+  await alice.shouldReply('仓库', /1\. 木钓鱼竿（已装备）/)
+  await alice.shouldReply('市场', /每日收购市场/)
+  await alice.shouldReply('铁匠铺', /耐久附魔书/)
   await alice.shouldReply('钓鱼源码', /Huanghun542\/koishi-plugin-mcfish/)
+  assert.equal((await state('alice')).rods.length, 1)
 })
-test('original Chinese fishing shortcut offers starter purchase and can be cancelled', async () => {
-  const reply = await alice.receive('进行钓鱼', 1)
-  assert.match(reply.join(''), /100 金币购买/)
-  await alice.receive('否')
-  await pause(25)
-  assert.equal((await state()).wallet, 200)
-  assert.equal((await state()).equipment, null)
+test('exact 开始N次钓鱼 shortcut and plain 钓鱼 reserve and settle correctly', async () => {
+  await alice.shouldReply('开始5次钓鱼', [/已开始 5 次钓鱼/, /本次完成 5 次钓鱼/])
+  await alice.shouldReply('钓鱼', [/已开始 1 次钓鱼/, /本次完成 1 次钓鱼/])
+  const p = await state('alice'); assert.equal(p.casts, 6); assert.equal(p.rods[0].durability, 24)
+  assert.equal(Object.values(p.inventory).reduce((a, b) => a + b, 0), 6)
 })
-test('starter confirmation equips a rod and the multi-cast Chinese shortcut settles correctly', async () => {
-  assert.match((await alice.receive('进行5次钓鱼', 1)).join(''), /100 金币购买/)
-  await alice.receive('是')
-  await eventually(async () => (await state()).casts === 5)
-  const p = await state()
-  assert.equal(p.wallet, 100); assert.equal(p.equipment.name, '木竿'); assert.equal(p.equipment.durability, 25)
-  await alice.shouldReply('mcfish.fish 2', /进行了 2 次钓鱼/)
-  assert.equal((await state()).casts, 7)
+test('quota truncation and exact daily exhausted message do not consume extra durability', async () => {
+  await seed('alice', p => { p.casts = 48 })
+  await alice.shouldReply('开始999次钓鱼', [/已开始 2 次钓鱼/, /本次完成 2 次钓鱼/])
+  const before = await state('alice')
+  await alice.shouldReply('开始1次钓鱼', '今日钓鱼次数已用完，明天再来吧')
+  assert.equal((await state('alice')).rods[0].durability, before.rods[0].durability)
 })
-test('Chinese probability, inventory and shop commands are reachable', async () => {
-  await alice.shouldReply('当前装备概率明细', /空竿：40%/)
-  await alice.shouldReply('钓鱼背包', /当前装备：木竿/)
-  await alice.shouldReply('钓鱼商店', /初始木竿/)
-  await alice.shouldReply('钓鱼看板', /今日行情/)
+test('purchase, indexed equipment, enchant, repair and sell-all work without confirmation prompts', async () => {
+  await seed('bob', p => { p.wallet = 20000 })
+  await bob.shouldReply('购买 铁钓鱼竿 2', /已购买 铁钓鱼竿 ×2/)
+  await bob.shouldReply('购买 耐久附魔书 2', /已购买 耐久附魔书 ×2/)
+  await bob.shouldReply('装备 2', /已装备 铁钓鱼竿/)
+  await bob.shouldReply('附魔 2 耐久附魔书', /附魔成功|附魔失败/)
+  await seed('bob', p => { p.rods[1].durability = 1; p.inventory['生鳕鱼'] = 10 })
+  await bob.shouldReply('维修 2', /耐久恢复至/)
+  await bob.shouldReply('出售 生鳕鱼 2', /已出售 生鳕鱼 ×2/)
+  await bob.shouldReply('一键出售', /鱼竿已保留/)
+  const p = await state('bob'); assert.equal(p.rods.length, 3); assert.deepEqual(p.inventory, {})
 })
-test('Chinese buy shortcut cancellation preserves coupons and balance', async () => {
-  await seed('alice', (p, market) => { p.wallet = 200; p.coupons = 3; g.addStack(market.stock, '鳕鱼', 20) })
-  const before = await state()
-  assert.match((await alice.receive('购买鳕鱼 2', 1)).join(''), /购买鳕鱼×2：支付/)
-  await alice.receive('取消'); await pause(25)
-  const p = await state()
-  assert.equal(p.wallet, before.wallet); assert.equal(p.coupons, 3); assert.equal(p.purchases, before.purchases)
+test('unavailable equipment and invalid commands leave state unchanged', async () => {
+  await bob.shouldReply('卸下鱼竿', /已卸下/)
+  await bob.shouldReply('钓鱼', /尚未装备鱼竿/)
+  const before = await state('bob')
+  await bob.shouldReply('购买 生鳕鱼 10', /仅出售五种鱼竿/)
+  await bob.shouldReply('装备 99', /序号不存在/)
+  await bob.shouldReply('出售 生鳕鱼 -1', /正整数/)
+  assert.deepEqual(await state('bob'), before)
 })
-test('confirmed purchase commits wallet, inventory, coupons and quota together', async () => {
-  assert.match((await alice.receive('购买鳕鱼 2', 1)).join(''), /购买鳕鱼×2/)
-  await alice.receive('是')
-  await eventually(async () => (await state()).coupons === 1)
-  const p = await state()
-  assert.equal(p.purchases, 2); assert(g.count(p, '鳕鱼') >= 2); assert(p.wallet < 200)
+test('concurrent repository purchases cannot overspend the same wallet', async () => {
+  await seed('buyer', p => { p.wallet = 100 })
+  const attempts = await Promise.allSettled(Array.from({ length: 8 }, () => seed('buyer', p => g.buy(p, '木钓鱼竿', 1, config))))
+  assert.equal(attempts.filter(r => r.status === 'fulfilled').length, 1)
+  const p = await state('buyer'); assert.equal(p.wallet, 0); assert.equal(p.rods.length, 2)
 })
-test('another user cannot confirm someone else’s pending transaction', async () => {
-  const before = await state()
-  assert.match((await alice.receive('购买鳕鱼 1', 1)).join(''), /购买鳕鱼×1/)
-  await bob.receive('是'); await pause(25)
-  assert.equal((await state()).wallet, before.wallet)
-  await alice.receive('否'); await pause(25)
+test('transaction failures roll back deductions, inventory and rods together', async () => {
+  await seed('rollback', p => { p.wallet = 5000 })
+  const before = await state('rollback')
+  await assert.rejects(seed('rollback', p => { g.buy(p, '铁钓鱼竿', 2, config); throw new Error('fail') }), /fail/)
+  assert.deepEqual(await state('rollback'), before)
 })
-test('saying no to record use continues selling and preserves the record', async () => {
-  await seed('alice', p => { p.bag = []; g.addStack(p.bag, '鳕鱼', 5); g.addStack(p.bag, '唱片') })
-  assert.match((await alice.receive('出售鳕鱼 2', 1)).join(''), /唱片/)
-  await alice.receive('否', 1)
-  await alice.receive('是')
-  await eventually(async () => g.count(await state(), '鳕鱼') === 3)
-  assert.equal(g.count(await state(), '唱片'), 1)
-})
-test('Chinese equipment, enchantment, purification and repair commands mutate real SQLite state', async () => {
-  await seed('alice', p => {
-    p.bag = []
-    g.addStack(p.bag, '铁竿', 1, g.equipment('铁竿'))
-    g.addStack(p.bag, '铁竿', 1, g.equipment('铁竿'))
-    g.addStack(p.bag, '诱钓'); g.addStack(p.bag, '宝藏诅咒', 2); g.addStack(p.bag, '净化书', 2)
-  })
-  assert.match((await alice.receive('装备铁竿', 1)).join(''), /\[0\]/)
-  await alice.receive('0')
-  await eventually(async () => (await state()).equipment.name === '铁竿')
-  await alice.shouldReply('修复鱼竿', /维修成功/)
-  assert.equal((await state()).equipment.repairs, 1)
-  await alice.shouldReply('附魔诱钓', /附魔(成功|失败)/)
-  assert.equal(g.count(await state(), '诱钓'), 0)
-  await alice.shouldReply('消除绑定诅咒 2', /消除了 2 层/)
-  assert.equal(g.count(await state(), '宝藏诅咒'), 0)
-})
-test('Chinese bulk crafting validates selection and supports all-in synthesis', async () => {
-  await seed('alice', p => {
-    p.bag = []
-    for (let i = 0; i < 7; i++) g.addStack(p.bag, '木竿', 1, g.equipment('木竿'))
-  })
-  assert.match((await alice.receive('合成铁竿', 1)).join(''), /梭哈/)
-  await alice.receive('0 0 1'); await pause(25)
-  assert.equal(g.count(await state(), '木竿'), 7)
-  assert.match((await alice.receive('合成铁竿', 1)).join(''), /梭哈/)
-  await alice.receive('梭哈')
-  await eventually(async () => g.count(await state(), '木竿') === 1)
-})
-test('Chinese sell-all-waste command removes only waste after confirmation', async () => {
-  await seed('alice', p => { p.bag = []; g.addStack(p.bag, '海草', 3); g.addStack(p.bag, '鳕鱼', 4) })
-  assert.match((await alice.receive('出售所有垃圾', 1)).join(''), /全部垃圾×3/)
-  await alice.receive('是')
-  await eventually(async () => g.count(await state(), '海草') === 0)
-  assert.equal(g.count(await state(), '鳕鱼'), 4)
-})
-test('two simultaneous buyers cannot purchase the last item twice', async () => {
-  let stockId
-  for (const user of ['alice', 'bob']) await seed(user, (p, market) => {
-    p.wallet = 10000; p.purchases = 0; p.coupons = 0
-    market.stock = market.stock.filter(s => s.name !== '唱片')
-    stockId = g.addStack(market.stock, '唱片').id
-  })
-  const offers = await Promise.all(['alice', 'bob'].map(user => seed(user, (p, m) => g.quote(p, m, 'buy', stockId))))
-  const results = await Promise.allSettled(['alice', 'bob'].map((user, i) => seed(user, (p, m) => g.transact(p, m, offers[i]))))
-  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1)
-  assert.equal(results.filter(r => r.status === 'rejected').length, 1)
-  const a = await state('alice'), b = await state('bob')
-  assert.equal(g.count(a, '唱片') + g.count(b, '唱片'), 1)
-  assert([a, b].some(p => p.wallet === 10000))
-})
-test('repository errors roll back mutations and do not poison subsequent operations', async () => {
-  const before = await state()
-  await assert.rejects(seed('alice', (p, m) => {
-    p.wallet = 0; p.bag = []; m.stock = []
-    throw new g.GameError('deliberate failure')
-  }), /deliberate failure/)
-  assert.deepEqual(await state(), before)
-  const balance = await seed('alice', p => p.wallet)
-  assert.equal(balance, before.wallet)
-})
-test('SQLite rolls back both player and market when a failure follows the first write', async () => {
-  const before = await state()
-  await assert.rejects(app.database.withTransaction(async db => {
-    await db.upsert('mcfish_player', [{ id: id('alice'), state: { ...before, wallet: 0 } }])
-    await db.upsert('mcfish_market', [{ id: 'global', state: { id: 'global', day: 'wrong', discounts: {}, stock: [] } }])
-    throw new Error('simulated write failure')
-  }), /simulated write failure/)
-  assert.deepEqual(await state(), before)
-  const [m] = await app.database.get('mcfish_market', { id: 'global' })
-  assert.notEqual(m.state.day, 'wrong')
+test('expired persisted fishing recovers exactly once on the next command', async () => {
+  await seed('bob', p => { g.equip(p, 1); g.startFishing(p, 2, config, Date.now() - 1000, () => 0) })
+  await bob.shouldReply('仓库', [/上次钓鱼已完成/, /生鳕鱼 ×2/])
+  await bob.shouldReply('仓库', /生鳕鱼 ×2/)
+  assert.equal((await state('bob')).pending, null)
 })

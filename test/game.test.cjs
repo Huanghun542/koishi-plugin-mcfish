@@ -2,201 +2,183 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const g = require('../lib/game')
-const { ITEMS } = require('../lib/catalog')
-const { cardHtml } = require('../lib/render')
-const config = { initialBalance: 200, dailyLimit: 50, timezone: 'Asia/Shanghai' }
-const fresh = () => g.createPlayer('alice', config)
-const market = () => ({ id: 'global', day: '2026-10-11', discounts: Object.fromEntries(ITEMS.map(i => [i.name, 100])), stock: [] })
-const zero = () => 0
+const { Config, validateConfig } = require('../lib/config')
+const { RODS, BOOKS, DOUBLE_PERCENT } = require('../lib/catalog')
+const config = Config({ maxWaitSeconds: 0 })
+const market = () => ({ day: '', increases: {} })
+const funded = () => { const p = g.createPlayer('alice'); p.wallet = 100000; return p }
 
-test('complete dates reset fishing and trading across months and years', () => {
-  const p = fresh()
-  p.day = '2026-09-11'; p.casts = 50; p.rodTrades = 10; p.purchases = 30; p.starterPurchases = 3
-  g.resetDay(p, '2026-10-11')
-  assert.equal(p.casts, 0); assert.equal(p.rodTrades, 0); assert.equal(p.purchases, 0)
-  assert.equal(p.starterPurchases, 3)
-  assert.equal(g.dayKey(new Date('2026-12-31T16:00:00Z'), 'Asia/Shanghai'), '2027-01-01')
+test('defaults, four table columns and console controls match the requested configuration', () => {
+  assert.equal(config.dailyLimit, 50); assert.equal(config.maxWaitSeconds, 0)
+  assert.equal(Config({}).maxWaitSeconds, 40)
+  assert.equal(config.normalColor, '#ffffff'); assert.equal(config.rareColor, '#ffd700')
+  assert.equal(config.enchantCost, 500); assert.equal(config.consumeEnchantBook, true)
+  assert.equal(config.recallDelaySeconds, 5); assert.deepEqual(config.recallTargets, [])
+  const groups = Config.list
+  const table = groups[0].dict.lootTable
+  assert.equal(table.meta.role, 'table')
+  assert.deepEqual(Object.keys(table.inner.dict), ['name', 'price', 'weight', 'rare'])
+  assert.equal(groups[0].dict.normalColor.meta.role, 'color')
+  assert.equal(groups[4].dict.recallTargets.meta.role, 'checkbox')
 })
-test('initial balance is granted once and only three discounted starter rods are available', () => {
-  const p = fresh(); p.wallet = 500
-  for (let i = 0; i < 3; i++) { g.startRod(p); assert.equal(p.equipment.name, '木竿'); p.equipment = null }
-  assert.equal(p.wallet, 200)
-  assert.throws(() => g.startRod(p), /三次/)
-})
-test('base probabilities cover exactly 100 draws and use the upstream category weights', () => {
-  const p = fresh(); const probabilities = g.zoneWeights(p)
-  assert.deepEqual(probabilities, { treasure: 1, pole: 4, fish: 25, waste: 30, air: 40 })
-  const actual = {}
-  for (let i = 0; i < 100; i++) {
-    const category = g.weighted(Object.entries(probabilities), () => i)
-    actual[category] = (actual[category] || 0) + 1
+test('invalid loot and contradictory market ranges fail before activating', () => {
+  for (const changes of [ { marketMinItems: 16, marketMaxItems: 15 }, { marketMinIncrease: 201 },
+    { lootTable: [] }, { lootTable: config.lootTable.map(i => ({ ...i, weight: 0 })) },
+    { lootTable: [...config.lootTable, config.lootTable[0]] }, { normalColor: 'red;}' }, { timezone: 'unknown' } ]) {
+    assert.throws(() => validateConfig(Config(changes)))
   }
-  assert.deepEqual(actual, probabilities)
+  assert.doesNotThrow(() => validateConfig(config))
 })
-test('luck, fishing buff and dolphin keep the category total at 100', () => {
-  const p = fresh(); p.equipment = g.equipment('木竿'); p.equipment.luck = 3
-  g.addStack(p.bag, '鳕鱼', 101)
-  assert.deepEqual(g.zoneWeights(p), { treasure: 5, pole: 11, fish: 38, waste: 36, air: 10 })
-  g.addStack(p.bag, '海豚')
-  assert.equal(g.zoneWeights(p).waste, 46)
-  assert.equal(g.zoneWeights(p).air, 0)
+test('new users receive exactly one equipped plain wooden rod and 100 emeralds', () => {
+  const p = g.createPlayer('alice')
+  assert.equal(p.wallet, 100); assert.equal(p.rods.length, 1)
+  assert.equal(g.equippedRod(p).name, '木钓鱼竿')
+  assert.equal(g.equippedRod(p).unbreaking, 0); assert.equal(g.equippedRod(p).luck, 0)
 })
-test('fishing clamps casts to daily quota and durability, breaking exhausted equipment', () => {
-  const p = fresh(); p.equipment = g.equipment('木竿'); p.equipment.durability = 3; p.casts = 49
-  const result = g.fish(p, 10, config, zero)
-  assert.equal(result.casts, 1); assert.equal(p.equipment.durability, 2); assert.equal(p.casts, 50)
-  assert.throws(() => g.fish(p, 1, config, zero), /今天已/)
-  const q = fresh(); q.equipment = g.equipment('木竿'); q.equipment.durability = 1
-  g.fish(q, 1, config, zero); assert.equal(q.equipment, null)
+test('daily quota and durability both clamp a request exceeding the configured limit', () => {
+  const p = funded(); p.casts = 45
+  const result = g.startFishing(p, 500, config, 1000, () => 0)
+  assert.equal(result.casts, 5); assert.equal(p.casts, 50); assert.equal(p.rods[0].durability, 25)
+  assert.equal(g.finishFishing(p, 1000).drops['生鳕鱼'], 5)
+  assert.throws(() => g.startFishing(p, 1, config), /今日钓鱼次数已用完，明天再来吧/)
 })
-test('trident triples drops and awards purification books per 75 resolved rolls', () => {
-  const p = fresh(); p.equipment = g.equipment('三叉戟')
-  const result = g.fish(p, 25, config, zero)
-  assert.equal(result.casts, 25); assert.equal(result.drops['诱钓'], 75)
-  assert.equal(g.count(p, '净化书'), 1); assert.equal(p.blessingProgress, 0)
+test('partial durability is used and an exhausted rod remains repairable', () => {
+  const p = funded(); p.rods[0].durability = 3
+  const result = g.startFishing(p, 10, config, 0, () => 0)
+  assert.equal(result.casts, 3); assert.equal(p.rods[0].durability, 0)
+  g.finishFishing(p, 0)
+  assert.throws(() => g.startFishing(p, 1, config), /损坏/)
+  g.repair(p, 1); assert.equal(p.rods[0].durability, 30); assert.equal(p.wallet, 99800)
 })
-test('axolotl consumes three fish per cast and multiplies ordinary drops by five', () => {
-  const p = fresh(); p.equipment = g.equipment('美西螈'); g.addStack(p.bag, '鳕鱼', 6)
-  const result = g.fish(p, 2, config, zero)
-  assert.equal(result.drops['诱钓'], 10); assert.equal(g.count(p, '鳕鱼'), 0)
-  assert.equal(p.equipment.durability, 999)
-  g.fish(p, 1, config, zero); assert.equal(p.equipment, null)
+test('no equipped rod and invalid quantities leave casts and inventory untouched', () => {
+  const p = funded(); p.equippedId = null
+  assert.throws(() => g.startFishing(p, 1, config), /尚未装备/)
+  assert.equal(p.casts, 0)
+  for (const input of ['0', '-1', '1.5', 'NaN', '1e3', '9007199254740992']) assert.throws(() => g.positive(input))
 })
-test('equipment swaps preserve both old and new item attributes', () => {
-  const p = fresh(); p.equipment = g.equipment('金竿'); p.equipment.lure = 2
-  const gear = g.equipment('铁竿'); gear.durability = 7
-  const stack = g.addStack(p.bag, '铁竿', 1, gear)
-  g.equip(p, stack.id)
-  assert.equal(p.equipment.durability, 7)
-  assert.equal(p.bag.find(s => s.name === '金竿').equipment.lure, 2)
+test('one batch waits 1 to 40 seconds, persists drops, and settles only once', () => {
+  for (const [rng, seconds] of [[() => 0, 1], [n => n - 1, 40]]) {
+    const p = funded(); const c = Config({})
+    const pending = g.startFishing(p, 5, c, 100, rng)
+    assert.equal(pending.finishAt, 100 + seconds * 1000)
+    assert.equal(g.finishFishing(p, pending.finishAt - 1), null)
+    assert.equal(Object.keys(p.inventory).length, 0)
+    assert(g.finishFishing(p, pending.finishAt)); assert.equal(g.finishFishing(p, pending.finishAt), null)
+    assert.equal(Object.values(p.inventory).reduce((a, b) => a + b, 0), 5)
+  }
 })
-test('repair consumes one rod, caps durability and respects repair limit', () => {
-  const p = fresh(); p.equipment = g.equipment('木竿'); p.equipment.durability = 1
-  const stack = g.addStack(p.bag, '木竿', 1, g.equipment('木竿'))
-  g.repair(p, stack.id, zero); assert.equal(p.equipment.durability, 25); assert.equal(p.equipment.repairs, 1)
-  p.equipment.repairs = 10
-  assert.throws(() => g.repair(p, 'none'), /上限/)
+test('50% enchant boundary charges on failure, upgrades exactly one level, caps at three', () => {
+  const p = funded(); g.addItem(p, BOOKS[0], 5)
+  assert.match(g.enchant(p, 1, BOOKS[0], config, () => 50), /失败/)
+  assert.equal(p.wallet, 99500); assert.equal(p.inventory[BOOKS[0]], 4); assert.equal(p.rods[0].unbreaking, 0)
+  for (let level = 1; level <= 3; level++) {
+    g.enchant(p, 1, BOOKS[0], config, () => 49)
+    assert.equal(p.rods[0].unbreaking, level)
+    assert.equal(g.maxDurability(p.rods[0]), [30, 60, 100, 150][level])
+  }
+  const snapshot = structuredClone(p)
+  assert.throws(() => g.enchant(p, 1, BOOKS[0], config), /三级/); assert.deepEqual(p, snapshot)
 })
-test('repair master and trident restore full durability', () => {
-  const p = fresh(); p.equipment = g.equipment('木竿'); p.equipment.durability = 1
-  for (let i = 0; i < 11; i++) g.addStack(p.bag, '木竿', 1, g.equipment('木竿'))
-  g.repair(p, p.bag[0].id, zero); assert.equal(p.equipment.durability, 30)
-  p.equipment = g.equipment('三叉戟'); p.equipment.durability = 2
-  const stack = g.addStack(p.bag, '三叉戟', 1, g.equipment('三叉戟'))
-  g.repair(p, stack.id, zero); assert.equal(p.equipment.durability, 301)
+test('book consumption can be disabled and both enchantments coexist', () => {
+  const p = funded(), c = Config({ consumeEnchantBook: false, enchantCost: 123 })
+  g.enchant(p, 1, '耐久', c, () => 0); g.enchant(p, 1, '海之眷顾', c, () => 0)
+  assert.equal(p.wallet, 99754); assert.deepEqual(p.inventory, {})
+  assert.equal(p.rods[0].unbreaking, 1); assert.equal(p.rods[0].luck, 1)
 })
-test('enchantment consumes books for failed attempts but preserves books at level cap', () => {
-  const p = fresh(); p.equipment = g.equipment('木竿'); g.addStack(p.bag, '诱钓', 3)
-  assert.match(g.enchant(p, '诱钓', () => 99), /失败/)
-  assert.equal(g.count(p, '诱钓'), 2)
-  g.enchant(p, '诱钓', zero); assert.equal(p.equipment.lure, 1)
-  p.equipment.lure = 3; assert.throws(() => g.enchant(p, '诱钓', zero), /III/)
-  assert.equal(g.count(p, '诱钓'), 1)
+test('luck levels use exact 1%, 3%, 5% boundaries; doubling consumes one cast and durability', () => {
+  for (let level = 1; level <= 3; level++) {
+    for (let chance = 0; chance < 100; chance++) {
+      const p = funded(); p.rods[0].luck = level
+      let call = 0
+      const result = g.startFishing(p, 1, config, 0, () => call++ === 0 ? 0 : chance)
+      assert.equal(result.drops['生鳕鱼'], chance < DOUBLE_PERCENT[level] ? 2 : 1)
+      assert.equal(p.casts, 1); assert.equal(p.rods[0].durability, 29)
+    }
+  }
 })
-test('crafting rejects repeated IDs before consuming materials', () => {
-  const p = fresh()
-  const stacks = Array.from({ length: 3 }, () => g.addStack(p.bag, '木竿', 1, g.equipment('木竿')))
-  assert.throws(() => g.craft(p, '铁竿', [stacks[0].id, stacks[0].id, stacks[1].id]), /不同/)
-  assert.equal(p.bag.length, 3)
+test('zero-weight items are never drawn and configured prices are used', () => {
+  const c = Config({ lootTable: config.lootTable.map((i, n) => ({ ...i, weight: n === 1 ? 1 : 0, price: 77 })) })
+  const p = funded(), result = g.startFishing(p, 20, c, 0, () => 0)
+  assert.deepEqual(result.drops, { 鲑鱼: 20 }); assert.equal(g.salePrice('鲑鱼', market(), c), 77)
 })
-test('bulk crafting handles independent failures, averages enchantments and keeps remainder', () => {
-  const p = fresh()
-  for (let i = 0; i < 7; i++) { const gear = g.equipment('木竿'); gear.lure = i % 3; g.addStack(p.bag, '木竿', 1, gear) }
-  const ids = p.bag.slice(0, 6).map(s => s.id)
-  let batch = 0; const result = g.craft(p, '铁竿', ids, () => batch++ === 0 ? 0 : 99)
-  assert.match(result, /成功 1，失败 1/)
-  assert.equal(g.count(p, '木竿'), 1); assert.equal(g.count(p, '铁竿'), 1)
-  assert.equal(p.bag.find(s => s.name === '铁竿').equipment.lure, 1)
+test('markets choose 5 to 15 distinct items with 10% to 200% increases and stable daily quotes', () => {
+  for (let day = 1; day <= 60; day++) {
+    const m = market(); g.refreshMarket(m, String(day), config)
+    const values = Object.values(m.increases)
+    assert(values.length >= 5 && values.length <= 15)
+    assert(values.every(n => n >= 10 && n <= 200))
+    const snapshot = structuredClone(m)
+    g.refreshMarket(m, String(day), config, () => { throw new Error('should not reroll') })
+    assert.deepEqual(m, snapshot)
+    const restarted = market(); g.refreshMarket(restarted, String(day), config); assert.deepEqual(m, restarted)
+  }
+  for (const rng of [() => 0, n => n - 1]) {
+    const m = market(); g.refreshMarket(m, 'test', config, rng)
+    assert.equal(Object.keys(m.increases).length, rng(11) === 0 ? 5 : 15)
+  }
 })
-test('purification removes equal numbers of curses and books', () => {
-  const p = fresh(); g.addStack(p.bag, '宝藏诅咒', 3); g.addStack(p.bag, '净化书', 2)
-  assert.throws(() => g.purify(p, 3), /不足/)
-  g.purify(p, 2); assert.equal(g.count(p, '宝藏诅咒'), 1); assert.equal(g.count(p, '净化书'), 0)
+test('100% increase doubles prices, other items sell at base value, bulk sale keeps all rods', () => {
+  const p = funded(), m = { day: 'day', increases: { 生鳕鱼: 100 } }
+  g.addItem(p, '生鳕鱼', 2); g.addItem(p, '骨头', 3)
+  assert.equal(g.salePrice('生鳕鱼', m, config), 20)
+  assert.match(g.sellAll(p, m, config), /70 绿宝石/)
+  assert.equal(p.wallet, 100070); assert.equal(p.rods.length, 1); assert.deepEqual(p.inventory, {})
 })
-test('market refresh is idempotent within a day and resets across matching day-of-month', () => {
-  const m = { id: 'global', day: '', discounts: {}, stock: [] }
-  g.refreshMarket(m, '2026-09-11', zero)
-  const first = JSON.stringify(m)
-  g.refreshMarket(m, '2026-09-11', () => 99)
-  assert.equal(JSON.stringify(m), first)
-  g.refreshMarket(m, '2026-10-11', zero)
-  assert.equal(m.stock.find(s => s.name === '初始木竿').count, 2)
+test('blacksmith has only 5 plain rod types and 2 books; trading cannot restock it', () => {
+  assert.equal(g.shopItems(config).length, 7)
+  const p = funded(); g.buy(p, '铁钓鱼竿', 2, config)
+  assert.equal(p.rods.length, 3); assert(p.rods.slice(1).every(r => r.unbreaking === 0 && r.luck === 0 && r.durability === 50))
+  assert.throws(() => g.buy(p, '生鳕鱼', 1, config), /仅出售/)
+  assert.throws(() => g.sell(p, '木钓鱼竿', 1, market(), config), /装备中的/)
+  g.unequip(p); g.sell(p, '木钓鱼竿', 1, market(), config); assert.equal(p.rods.length, 2)
 })
-test('rod IDs remain unique when created within the same millisecond', () => {
-  const bag = []
-  for (let i = 0; i < 100; i++) g.addStack(bag, '木竿', 1, g.equipment('木竿'), 1)
-  assert.equal(new Set(bag.map(s => s.id)).size, 100)
+test('warehouse keeps rods first, one per row; regular items are two per row', () => {
+  const p = funded(); g.buy(p, '铁钓鱼竿', 1, config)
+  for (const item of config.lootTable.slice(0, 3)) g.addItem(p, item.name, 1)
+  const rows = g.inventoryRows(p)
+  assert.equal(rows.length, 4); assert.equal(rows[0].rods.length, 1); assert.equal(rows[1].rods.length, 1)
+  assert.equal(rows[2].items.length, 2); assert.equal(rows[3].items.length, 1)
 })
-test('price of exhausted/over-repaired rods cannot become negative', () => {
-  const gear = g.equipment('木竿'); gear.durability = 1; gear.repairs = 100
-  assert.equal(g.priceOf(market(), { name: '木竿', equipment: gear }), 1)
+test('overflow after the second page is sold at current quotes with correct odd-row capacity', () => {
+  const p = funded(); p.rods = [p.rods[0], ...Array.from({ length: 28 }, () => g.newRod('木钓鱼竿'))]
+  g.addItem(p, '生鳕鱼', 2); g.addItem(p, '鲑鱼', 1); g.addItem(p, '骨头', 4)
+  const m = { day: 'day', increases: { 骨头: 100 } }, before = p.wallet
+  const overflow = g.trimOverflow(p, m, config)
+  assert.equal(overflow.earned, 80); assert.equal(p.wallet, before + 80)
+  assert.equal(p.inventory['生鳕鱼'], 2); assert.equal(p.inventory['骨头'], undefined)
+  assert.equal(g.inventoryPages(p).length, 2); assert.equal(g.inventoryRows(p).length, 30)
+  assert.equal(g.trimOverflow(p, m, config).count, 0)
 })
-test('a cancelled quote does not consume coupons, money or quota', () => {
-  const p = fresh(); p.coupons = 3; const m = market(); const stock = g.addStack(m.stock, '鳕鱼', 10)
-  const before = JSON.stringify([p, m]); const offer = g.quote(p, m, 'buy', stock.id, 2)
-  assert.equal(offer.total, 10); assert.equal(JSON.stringify([p, m]), before)
-  g.transact(p, m, offer)
-  assert.equal(p.coupons, 1); assert.equal(p.wallet, 190); assert.equal(p.purchases, 2)
-  assert.equal(stock.count, 8)
+test('overflow rods are sold too, while sell-all itself never sells rods', () => {
+  const p = funded(); p.rods = Array.from({ length: 31 }, () => g.newRod('木钓鱼竿')); p.equippedId = p.rods[0].id
+  const before = p.wallet, overflow = g.trimOverflow(p, market(), config)
+  assert.equal(overflow.count, 1); assert.equal(p.rods.length, 30); assert.equal(p.wallet, before + 100)
 })
-test('buying the twentieth undiscounted order grants exactly three half-price units', () => {
-  const p = fresh(); p.purchaseProgress = 19; const m = market(); const stock = g.addStack(m.stock, '鳕鱼', 10)
-  g.transact(p, m, g.quote(p, m, 'buy', stock.id))
-  assert.equal(p.coupons, 3); assert.equal(p.purchaseProgress, 0)
+test('calendar dates include month and year, reset once at Shanghai midnight', () => {
+  const p = funded(); p.day = '2026-09-11'; p.casts = 50
+  g.resetDay(p, '2026-10-11'); assert.equal(p.casts, 0)
+  p.casts = 20; g.resetDay(p, '2026-10-11'); assert.equal(p.casts, 20)
+  assert.equal(g.dayKey(new Date('2026-10-11T15:59:59Z'), 'Asia/Shanghai'), '2026-10-11')
+  assert.equal(g.dayKey(new Date('2026-10-11T16:00:00Z'), 'Asia/Shanghai'), '2026-10-12')
 })
-test('changed inventory or changed daily price invalidates a quote', () => {
-  const p = fresh(); const m = market(); const stock = g.addStack(m.stock, '鳕鱼', 10)
-  const offer = g.quote(p, m, 'buy', stock.id)
-  stock.count--; assert.throws(() => g.transact(p, m, offer), /变化/)
-  stock.count++; m.day = '2026-10-12'; assert.throws(() => g.transact(p, m, offer), /跨日/)
-  assert.equal(p.wallet, 200)
+test('v1 migration preserves wallet, equipped rod and inventory without another starter gift', () => {
+  const old = { wallet: 4321, casts: 17, day: '2026-10-11', equipment: { name: '铁竿', durability: 23, luck: 2 },
+    bag: [{ id: 'old', name: '诱钓', count: 3 }, { id: 'fish', name: '鳕鱼', count: 12 }] }
+  const p = g.migratePlayer(old, 'alice')
+  assert.equal(p.wallet, 4321); assert.equal(p.casts, 17); assert.equal(g.equippedRod(p).name, '铁钓鱼竿')
+  assert.equal(p.inventory['耐久附魔书'], 3); assert.equal(p.inventory['生鳕鱼'], 12)
+  assert.deepEqual(g.migratePlayer(p, 'alice'), p)
 })
-test('rod trade cap, item purchase cap and purification book restrictions apply', () => {
-  const p = fresh(); const m = market(); const rod = g.addStack(m.stock, '木竿', 1, g.equipment('木竿'))
-  p.rodTrades = 10; assert.throws(() => g.quote(p, m, 'buy', rod.id), /10 支/)
-  const f = g.addStack(m.stock, '鳕鱼', 10); p.purchases = 29
-  assert.equal(g.quote(p, m, 'buy', f.id, 10).count, 1)
-  const book = g.addStack(m.stock, '净化书', 10)
-  assert.throws(() => g.quote(p, m, 'buy', book.id), /没有诅咒/)
+test('custom loot names that overlap old aliases can still be sold by their exact name', () => {
+  const c = Config({ lootTable: config.lootTable.map((item, i) => i === 0 ? { ...item, name: '鳕鱼', price: 23 } : item) })
+  const p = funded(); p.inventory['鳕鱼'] = 3
+  assert.match(g.sell(p, '鳕鱼', 2, market(), c), /获得 46 绿宝石/)
+  assert.equal(p.inventory['鳕鱼'], 1)
 })
-test('every ten rod trades grants one curse and non-rod sales do not consume purchase quota', () => {
-  const p = fresh(); p.curseProgress = 9
-  const m = market(); const rod = g.addStack(p.bag, '木竿', 1, g.equipment('木竿'))
-  g.transact(p, m, g.quote(p, m, 'sell', rod.id))
-  assert.equal(g.count(p, '宝藏诅咒'), 1); assert.equal(p.rodTrades, 1)
-  const f = g.addStack(p.bag, '鳕鱼', 3)
-  g.transact(p, m, g.quote(p, m, 'sell', f.id, 3))
-  assert.equal(p.purchases, 0); assert.equal(m.stock.find(s => s.name === '鳕鱼').count, 3)
-})
-test('selling records consumes the extra record without resurrecting or double counting it', () => {
-  const p = fresh(); const m = market(); const records = g.addStack(p.bag, '唱片', 3)
-  const offer = g.quote(p, m, 'sell', records.id, 2, true)
-  assert.equal(offer.total, 9600)
-  g.transact(p, m, offer)
-  assert.equal(g.count(p, '唱片'), 0); assert.equal(p.wallet, 9800)
-  assert.equal(m.stock.find(s => s.name === '唱片').count, 2)
-})
-test('over ten curses show actual negative proceeds and require sufficient balance', () => {
-  const p = fresh(); const m = market(); g.addStack(p.bag, '宝藏诅咒', 11)
-  const records = g.addStack(p.bag, '唱片')
-  assert.throws(() => g.quote(p, m, 'sell', records.id), /倒贴/)
-  p.wallet = 1000; const offer = g.quote(p, m, 'sell', records.id)
-  assert.equal(offer.total, -240)
-  g.transact(p, m, offer); assert.equal(p.wallet, 760)
-})
-test('selling all waste applies taxes and curses once and preserves non-waste inventory', () => {
-  const p = fresh(); const m = market()
-  g.addStack(p.bag, '海草', 2); g.addStack(p.bag, '木棍', 3); g.addStack(p.bag, '鳕鱼', 7); g.addStack(p.bag, '宝藏诅咒')
-  const offer = g.quote(p, m, 'waste', '')
-  assert.equal(offer.total, 36)
-  g.transact(p, m, offer); assert.equal(p.wallet, 236); assert.equal(g.count(p, '海草'), 0)
-  assert.equal(g.count(p, '鳕鱼'), 7)
-})
-test('numeric validation rejects negative, fractional, infinite and oversized inputs', () => {
-  for (const input of ['-1', '0', '1.2', 'Infinity', 'NaN', '9007199254740993']) assert.throws(() => g.positive(input))
-})
-test('image cards escape all text and contain no external assets', () => {
-  const html = cardHtml('<script>x</script>', '<img src=x onerror=alert(1)>')
-  assert(!html.includes('<script>')); assert(!html.includes('<img'))
-  assert(html.includes('&lt;script&gt;'))
+test('changing market settings regenerates quotes in the configured range on the same day', () => {
+  const m = market(); g.refreshMarket(m, 'day', config)
+  const changed = Config({ marketMinItems: 6, marketMaxItems: 6, marketMinIncrease: 20, marketMaxIncrease: 20 })
+  g.refreshMarket(m, 'day', changed)
+  assert.equal(Object.keys(m.increases).length, 6)
+  assert(Object.values(m.increases).every(value => value === 20))
 })

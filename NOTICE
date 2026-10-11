@@ -1,17 +1,26 @@
 koishi-plugin-mcfish
-Copyright (C) 2026 Huanghun542. TypeScript/Koishi port, modified 2026-10-11.
+Copyright (C) 2026 Huanghun542. Modified 2026-10-11.
 
-Adapted from the mcfish plugin in FloatTech/ZeroBot-Plugin (Go, rules 5.6.2).
+Gameplay adapted from the mcfish plugin in FloatTech/ZeroBot-Plugin (Go, rules 5.6.2).
 Original plugin author: fangliuyu; with contributions from the upstream project.
-Upstream source: https://github.com/FloatTech/ZeroBot-Plugin/tree/master/plugin/mcfish
+Upstream: https://github.com/FloatTech/ZeroBot-Plugin/tree/master/plugin/mcfish
 Upstream license: GNU Affero General Public License, version 3.
-Item definitions: https://github.com/FloatTech/zbpdata/blob/main/McFish/articlesInfo.json
+Rod tiers, base durability and prices adapted from:
+https://github.com/FloatTech/zbpdata/blob/main/McFish/articlesInfo.json
 
-This modified version is distributed under AGPL-3.0-only.
-The complete license is included in LICENSE. No warranty is provided.
-Source code: https://github.com/Huanghun542/koishi-plugin-mcfish
+Modular structure, inventory layout, backgrounds, icons and supplied font reused
+from Huanghun542's local astrbot_plugin_mcfishing, supplied with AGPL version 3.
+Artwork is preserved from that project; rod and book icons are also copied into
+assets/items to provide item-name lookup. Its unknown-item icon is the barrier.
 
-Changes: reimplemented in TypeScript for Koishi 4, platform-specific player IDs,
-database transactions, configurable time zone and fishing delays, standalone
-wallet, optional Puppeteer cards and corrected probability/date handling.
-Original artwork and fonts are not redistributed.
+Changes in v2: TypeScript/Koishi reimplementation split into database and core
+modules; standalone emerald balance; starter rod and 100 emeralds; configurable
+weighted loot table and colors; capped daily casts; 1-40 second batch wait;
+two-page warehouse with overflow sale; daily premium buyback; fixed blacksmith;
+two enchantments (50%, maximum III); repairs; selective end-of-flow message
+recall; persistent fishing recovery; v1 Koishi save migration.
+Removed shared trading stock, taxes, curses, coupons, synthesis and special tools
+from the current game rules. Legacy gear and quantities are preserved on migration.
+
+Distributed under AGPL-3.0-only. Full text in LICENSE; no warranty is provided.
+Corresponding source: https://github.com/Huanghun542/koishi-plugin-mcfish

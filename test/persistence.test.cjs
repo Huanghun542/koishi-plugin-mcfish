@@ -7,35 +7,28 @@ const os = require('node:os')
 const { App } = require('koishi')
 const sqlite = require('@koishijs/plugin-database-sqlite').default
 const { GameRepository } = require('../lib/database')
-const { createPlayer, equipment, addStack, count } = require('../lib/game')
-
-test('disk SQLite preserves wallet, rods and market across a full Koishi restart', async () => {
+const { Config } = require('../lib/config')
+const g = require('../lib/game')
+test('SQLite restart preserves rods, enchantments, wallet, market and pending fishing', async () => {
   const root = path.resolve(process.env.MCFISH_TEST_DIR || os.tmpdir())
-  const directory = await fs.mkdtemp(path.join(root, 'mcfish-restart-'))
-  const dbPath = path.join(directory, 'fish.db')
-  const config = { initialBalance: 200, dailyLimit: 50, timezone: 'Asia/Shanghai' }
+  const directory = await fs.mkdtemp(path.join(root, 'mcfish-v2-'))
+  const config = Config({ maxWaitSeconds: 0 })
   let app
   try {
-    app = new App()
-    app.plugin(sqlite, { path: dbPath })
-    const repository = new GameRepository(app, config)
-    await app.start()
-    await repository.run('qq:alice', (p, m) => {
-      p.wallet = 456; p.equipment = equipment('钻石竿'); p.equipment.lure = 2
-      addStack(p.bag, '鳕鱼', 12)
-      addStack(m.stock, '唱片', 3)
+    const open = async () => {
+      app = new App(); app.plugin(sqlite, { path: path.join(directory, 'fish.db') })
+      const repo = new GameRepository(app, config); await app.start(); return repo
+    }
+    let repo = await open()
+    const before = await repo.run('alice', (p, m) => {
+      p.wallet = 4321; p.rods[0].luck = 3; p.rods[0].unbreaking = 2
+      g.startFishing(p, 4, config, 0, () => 0); return { p, m }
     })
-    await app.stop()
-    app = new App()
-    app.plugin(sqlite, { path: dbPath })
-    const restarted = new GameRepository(app, config)
-    await app.start()
-    const result = await restarted.run('qq:alice', (p, m) => ({ p, m }))
-    assert.equal(result.p.wallet, 456)
-    assert.equal(result.p.equipment.name, '钻石竿')
-    assert.equal(result.p.equipment.lure, 2)
-    assert.equal(count(result.p, '鳕鱼'), 12)
-    assert.equal(result.m.stock.find(s => s.name === '唱片').count, 3)
+    await app.stop(); repo = await open()
+    const restored = await repo.run('alice', (p, m) => ({ p, m }))
+    assert.deepEqual(restored, before)
+    await repo.run('alice', p => { assert(g.finishFishing(p)); assert.equal(g.finishFishing(p), null) })
+    assert.equal((await repo.run('alice', p => p)).inventory['生鳕鱼'], 8)
   } finally {
     await app?.stop()
     if (path.dirname(directory) !== root) throw new Error('Unexpected test directory')

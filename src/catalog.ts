@@ -1,215 +1,60 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Item data adapted from FloatTech/zbpdata, McFish/articlesInfo.json.
-export type Category = 'pole' | 'fish' | 'waste' | 'treasure';
-export interface ItemDefinition { name: string; category: Category; weight: number; maxDurability: number; price: number }
-export const ITEMS: ItemDefinition[] = [
-  {
-    "name": "木竿",
-    "category": "pole",
-    "weight": 70,
-    "maxDurability": 30,
-    "price": 100
-  },
-  {
-    "name": "铁竿",
-    "category": "pole",
-    "weight": 20,
-    "maxDurability": 50,
-    "price": 300
-  },
-  {
-    "name": "金竿",
-    "category": "pole",
-    "weight": 6,
-    "maxDurability": 70,
-    "price": 700
-  },
-  {
-    "name": "钻石竿",
-    "category": "pole",
-    "weight": 3,
-    "maxDurability": 100,
-    "price": 1500
-  },
-  {
-    "name": "下界合金竿",
-    "category": "pole",
-    "weight": 1,
-    "maxDurability": 150,
-    "price": 3100
-  },
-  {
-    "name": "三叉戟",
-    "category": "pole",
-    "weight": 0,
-    "maxDurability": 301,
-    "price": 4000
-  },
-  {
-    "name": "鳕鱼",
-    "category": "fish",
-    "weight": 69,
-    "maxDurability": 0,
-    "price": 10
-  },
-  {
-    "name": "鲑鱼",
-    "category": "fish",
-    "weight": 20,
-    "maxDurability": 0,
-    "price": 50
-  },
-  {
-    "name": "热带鱼",
-    "category": "fish",
-    "weight": 6,
-    "maxDurability": 0,
-    "price": 100
-  },
-  {
-    "name": "河豚",
-    "category": "fish",
-    "weight": 3,
-    "maxDurability": 0,
-    "price": 300
-  },
-  {
-    "name": "鹦鹉螺",
-    "category": "fish",
-    "weight": 1,
-    "maxDurability": 0,
-    "price": 500
-  },
-  {
-    "name": "墨鱼",
-    "category": "fish",
-    "weight": 1,
-    "maxDurability": 0,
-    "price": 500
-  },
-  {
-    "name": "海草",
-    "category": "waste",
-    "weight": 10,
-    "maxDurability": 0,
-    "price": 10
-  },
-  {
-    "name": "木棍",
-    "category": "waste",
-    "weight": 10,
-    "maxDurability": 0,
-    "price": 10
-  },
-  {
-    "name": "帽子",
-    "category": "waste",
-    "weight": 10,
-    "maxDurability": 0,
-    "price": 10
-  },
-  {
-    "name": "鞋子",
-    "category": "waste",
-    "weight": 10,
-    "maxDurability": 0,
-    "price": 10
-  },
-  {
-    "name": "瓶子",
-    "category": "waste",
-    "weight": 10,
-    "maxDurability": 0,
-    "price": 10
-  },
-  {
-    "name": "绊线钩",
-    "category": "waste",
-    "weight": 10,
-    "maxDurability": 0,
-    "price": 10
-  },
-  {
-    "name": "骨头",
-    "category": "waste",
-    "weight": 10,
-    "maxDurability": 0,
-    "price": 10
-  },
-  {
-    "name": "皮革",
-    "category": "waste",
-    "weight": 10,
-    "maxDurability": 0,
-    "price": 10
-  },
-  {
-    "name": "腐肉",
-    "category": "waste",
-    "weight": 10,
-    "maxDurability": 0,
-    "price": 10
-  },
-  {
-    "name": "碗",
-    "category": "waste",
-    "weight": 10,
-    "maxDurability": 0,
-    "price": 10
-  },
-  {
-    "name": "诱钓",
-    "category": "treasure",
-    "weight": 25,
-    "maxDurability": 0,
-    "price": 1000
-  },
-  {
-    "name": "海之眷顾",
-    "category": "treasure",
-    "weight": 10,
-    "maxDurability": 0,
-    "price": 2500
-  },
-  {
-    "name": "海豚",
-    "category": "treasure",
-    "weight": 19,
-    "maxDurability": 0,
-    "price": 1000
-  },
-  {
-    "name": "宝藏诅咒",
-    "category": "treasure",
-    "weight": 25,
-    "maxDurability": 0,
-    "price": 0
-  },
-  {
-    "name": "净化书",
-    "category": "treasure",
-    "weight": 19,
-    "maxDurability": 0,
-    "price": 5000
-  },
-  {
-    "name": "唱片",
-    "category": "treasure",
-    "weight": 1,
-    "maxDurability": 0,
-    "price": 3000
-  },
-  {
-    "name": "美西螈",
-    "category": "treasure",
-    "weight": 1,
-    "maxDurability": 999,
-    "price": 3000
-  }
+export interface LootItem { name: string; price: number; weight: number; rare: boolean }
+export interface RodDefinition { name: string; price: number; durability: number }
+// Five tiers and prices follow ZeroBot mcfish; names match the supplied artwork.
+export const RODS: RodDefinition[] = [
+  { name: '木钓鱼竿', price: 100, durability: 30 },
+  { name: '铁钓鱼竿', price: 300, durability: 50 },
+  { name: '金钓鱼竿', price: 700, durability: 70 },
+  { name: '钻石钓鱼竿', price: 1500, durability: 100 },
+  { name: '下界合金钓鱼竿', price: 3100, durability: 150 },
 ]
-export const CATALOG = new Map(ITEMS.map(item => [item.name, item]));
-export const RODS = ITEMS.filter(item => item.category === 'pole').map(item => item.name);
-export const FISH = ITEMS.filter(item => item.category === 'fish').map(item => item.name);
-export const WASTE = ITEMS.filter(item => item.category === 'waste').map(item => item.name);
-export const EQUIPPABLE = [...RODS, '美西螈'];
-export const ZONE_WEIGHTS = { treasure: 1, pole: 4, fish: 25, waste: 30 };
+export const BOOKS = ['耐久附魔书', '海之眷顾附魔书'] as const
+export const DURABILITY_BONUS = [0, 30, 70, 120]
+export const DOUBLE_PERCENT = [0, 1, 3, 5]
+export const DEFAULT_LOOT: LootItem[] = [
+  { name: '生鳕鱼', price: 10, weight: 69, rare: false },
+  { name: '鲑鱼', price: 50, weight: 20, rare: false },
+  { name: '热带鱼', price: 100, weight: 6, rare: false },
+  { name: '河豚', price: 300, weight: 3, rare: false },
+  { name: '刺豚', price: 120, weight: 3, rare: false },
+  { name: '金枪鱼', price: 150, weight: 3, rare: false },
+  { name: '鲈鱼', price: 60, weight: 6, rare: false },
+  { name: '鳀鱼', price: 15, weight: 10, rare: false },
+  { name: '蝠鲼', price: 300, weight: 1, rare: true },
+  { name: '螃蟹', price: 40, weight: 8, rare: false },
+  { name: '牡蛎', price: 30, weight: 10, rare: false },
+  { name: '贝壳', price: 20, weight: 10, rare: false },
+  { name: '海草', price: 10, weight: 10, rare: false },
+  { name: '海带', price: 10, weight: 10, rare: false },
+  { name: '海泡菜', price: 20, weight: 8, rare: false },
+  { name: '木棍', price: 10, weight: 10, rare: false },
+  { name: '骨头', price: 10, weight: 10, rare: false },
+  { name: '皮革', price: 10, weight: 10, rare: false },
+  { name: '腐肉', price: 10, weight: 10, rare: false },
+  { name: '线', price: 10, weight: 10, rare: false },
+  { name: '黏土', price: 10, weight: 10, rare: false },
+  { name: '墨囊', price: 30, weight: 8, rare: false },
+  { name: '荧光墨囊', price: 80, weight: 4, rare: true },
+  { name: '珊瑚', price: 30, weight: 6, rare: false },
+  { name: '失活珊瑚', price: 10, weight: 8, rare: false },
+  { name: '鹦鹉螺壳', price: 500, weight: 1, rare: true },
+  { name: '白珍珠', price: 500, weight: 1, rare: true },
+  { name: '黑珍珠', price: 1000, weight: 1, rare: true },
+  { name: '海洋之心', price: 2500, weight: 1, rare: true },
+  { name: '下界之星', price: 3000, weight: 1, rare: true },
+  { name: '鞍', price: 200, weight: 2, rare: true },
+  { name: '命名牌', price: 200, weight: 2, rare: true },
+  { name: '耐久附魔书', price: 1000, weight: 2, rare: true },
+  { name: '海之眷顾附魔书', price: 2500, weight: 1, rare: true },
+]
+export const SOURCE_URL = 'https://github.com/Huanghun542/koishi-plugin-mcfish'
+export function normalizeName(name: string): string {
+  const aliases: Record<string, string> = {
+    木竿: '木钓鱼竿', 铁竿: '铁钓鱼竿', 金竿: '金钓鱼竿', 钻石竿: '钻石钓鱼竿',
+    下界合金竿: '下界合金钓鱼竿', 鳕鱼: '生鳕鱼', 鹦鹉螺: '鹦鹉螺壳',
+    耐久: BOOKS[0], '耐久附魔': BOOKS[0], 海之眷顾: BOOKS[1], '海之眷顾附魔': BOOKS[1],
+  }
+  const key = name.trim()
+  return Object.hasOwn(aliases, key) ? aliases[key] : key
+}

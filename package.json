@@ -1,10 +1,10 @@
 {
   "name": "koishi-plugin-mcfish",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Minecraft 风格钓鱼模拟器，ZeroBot mcfish 的 Koishi 移植版",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "files": ["lib", "src", "tsconfig.json", "LICENSE", "NOTICE", "README.md"],
+  "files": ["lib", "src", "assets", "tsconfig.json", "LICENSE", "NOTICE", "README.md"],
   "license": "AGPL-3.0-only",
   "author": "Huanghun542",
   "repository": { "type": "git", "url": "https://github.com/Huanghun542/koishi-plugin-mcfish.git" },
@@ -29,7 +29,7 @@
     "@types/node": "^22.0.0"
   },
   "koishi": {
-    "description": { "zh": "MC 钓鱼：背包、商店、装备、附魔、合成、诅咒与每日行情" },
+    "description": { "zh": "MC 钓鱼：仓库、每日高价收购市场、铁匠铺、耐久与海之眷顾附魔" },
     "service": { "required": ["database"], "optional": ["puppeteer"] },
     "locales": ["zh-CN"]
   }
