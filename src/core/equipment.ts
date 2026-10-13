@@ -19,7 +19,7 @@ export function repair(player: Player, index: unknown, config?: Config): string 
   const rod = rodAt(player, index)
   const max = maxDurability(rod)
   if (rod.durability >= max) throw new GameError('该鱼竿耐久已满，无需维修。', 'trade')
-  const cost = config?.repairCost ?? 200
+  const cost = config?.repairCost ?? 150
   if (player.wallet < cost) throw new GameError(`维修需要 ${cost} 绿宝石，当前余额不足。`, 'trade')
   player.wallet -= cost
   rod.durability = max
@@ -36,7 +36,7 @@ export function enchant(player: Player, index: unknown, name: string, config: Co
   if (player.wallet < config.enchantCost) throw new GameError(`附魔需要 ${config.enchantCost} 绿宝石，当前余额不足。`, 'trade')
   if (config.consumeEnchantBook) removeItem(player, book, 1)
   player.wallet -= config.enchantCost
-  if (rng(100) >= 50) return `附魔失败，已消耗 ${config.enchantCost} 绿宝石${config.consumeEnchantBook ? '及一本' + book : ''}。`
+  if (rng(100) >= config.enchantSuccessRate) return `附魔失败，已消耗 ${config.enchantCost} 绿宝石${config.consumeEnchantBook ? '及一本' + book : ''}。`
   const oldMax = maxDurability(rod)
   rod[field]++
   if (field === 'unbreaking') rod.durability += maxDurability(rod) - oldMax

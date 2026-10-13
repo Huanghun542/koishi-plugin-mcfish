@@ -7,7 +7,7 @@ const mock = require('@koishijs/plugin-mock').default
 const plugin = require('../lib/index')
 const { GameRepository } = require('../lib/database')
 const g = require('../lib/game')
-const config = plugin.Config({ images: false, maxWaitSeconds: 0 })
+const config = plugin.Config({ images: false, minWaitSeconds: 0, maxWaitSeconds: 0 })
 const id = user => JSON.stringify(['mock', user])
 let app, alice, bob, repo, mockFork
 const state = async user => (await app.database.get('mcfish_player', { id: id(user) }))[0]?.state

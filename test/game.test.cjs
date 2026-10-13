@@ -4,16 +4,17 @@ const assert = require('node:assert/strict')
 const g = require('../lib/game')
 const { Config, validateConfig } = require('../lib/config')
 const { RODS, BOOKS, DOUBLE_PERCENT } = require('../lib/catalog')
-const config = Config({ maxWaitSeconds: 0 })
+const config = Config({ minWaitSeconds: 0, maxWaitSeconds: 0 })
 const market = () => ({ day: '', increases: {} })
 const funded = () => { const p = g.createPlayer('alice'); p.wallet = 100000; return p }
 
 test('defaults, four table columns and console controls match the requested configuration', () => {
   assert.equal(config.dailyLimit, 50); assert.equal(config.maxWaitSeconds, 0)
   assert.equal(Config({}).maxWaitSeconds, 40)
+  assert.equal(Config({}).minWaitSeconds, 20)
   assert.equal(config.normalColor, '#ffffff'); assert.equal(config.rareColor, '#ffd700')
-  assert.equal(config.enchantCost, 500); assert.equal(config.consumeEnchantBook, true)
-  assert.equal(config.repairCost, 200); assert.equal(config.saleMultiplier, 1); assert.equal(config.marketMinIncrease, -50)
+  assert.equal(config.enchantCost, 300); assert.equal(config.consumeEnchantBook, true); assert.equal(config.enchantSuccessRate, 50)
+  assert.equal(config.repairCost, 150); assert.equal(config.saleMultiplier, 1); assert.equal(config.marketMinIncrease, -50)
   assert.equal(config.recallDelaySeconds, 5); assert.deepEqual(config.recallTargets, [])
   const groups = Config.list
   const table = groups[0].dict.lootTable
@@ -49,7 +50,7 @@ test('partial durability is used and an exhausted rod remains repairable', () =>
   assert.equal(result.casts, 3); assert.equal(p.rods[0].durability, 0)
   g.finishFishing(p, 0)
   assert.throws(() => g.startFishing(p, 1, config), /损坏/)
-  g.repair(p, 1, config); assert.equal(p.rods[0].durability, 30); assert.equal(p.wallet, 99800)
+  g.repair(p, 1, config); assert.equal(p.rods[0].durability, 30); assert.equal(p.wallet, 99850)
 })
 test('no equipped rod and invalid quantities leave casts and inventory untouched', () => {
   const p = funded(); p.equippedId = null
@@ -57,8 +58,8 @@ test('no equipped rod and invalid quantities leave casts and inventory untouched
   assert.equal(p.casts, 0)
   for (const input of ['0', '-1', '1.5', 'NaN', '1e3', '9007199254740992']) assert.throws(() => g.positive(input))
 })
-test('one batch waits 1 to 40 seconds, persists drops, and settles only once', () => {
-  for (const [rng, seconds] of [[() => 0, 1], [n => n - 1, 40]]) {
+test('one batch waits 20 to 40 seconds, persists drops, and settles only once', () => {
+  for (const [rng, seconds] of [[() => 0, 20], [n => n - 1, 40]]) {
     const p = funded(); const c = Config({})
     const pending = g.startFishing(p, 5, c, 100, rng)
     assert.equal(pending.finishAt, 100 + seconds * 1000)
@@ -71,7 +72,7 @@ test('one batch waits 1 to 40 seconds, persists drops, and settles only once', (
 test('50% enchant boundary charges on failure, upgrades exactly one level, caps at three', () => {
   const p = funded(); g.addItem(p, BOOKS[0], 5)
   assert.match(g.enchant(p, 1, BOOKS[0], config, () => 50), /失败/)
-  assert.equal(p.wallet, 99500); assert.equal(p.inventory[BOOKS[0]], 4); assert.equal(p.rods[0].unbreaking, 0)
+  assert.equal(p.wallet, 99700); assert.equal(p.inventory[BOOKS[0]], 4); assert.equal(p.rods[0].unbreaking, 0)
   for (let level = 1; level <= 3; level++) {
     g.enchant(p, 1, BOOKS[0], config, () => 49)
     assert.equal(p.rods[0].unbreaking, level)

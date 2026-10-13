@@ -4,9 +4,9 @@ import { DEFAULT_LOOT, isEnchantBook, LootItem, RODS } from './catalog'
 export type RecallTarget = 'result' | 'equipment' | 'damage' | 'waiting' | 'trade' | 'notice'
 export interface Config {
   lootTable: LootItem[]; normalColor: string; rareColor: string
-  dailyLimit: number; maxWaitSeconds: number; timezone: string
+  dailyLimit: number; minWaitSeconds: number; maxWaitSeconds: number; timezone: string
   marketMinIncrease: number; marketMaxIncrease: number; marketMinItems: number; marketMaxItems: number
-  consumeEnchantBook: boolean; enchantCost: number; repairCost: number; saleMultiplier: number
+  consumeEnchantBook: boolean; enchantSuccessRate: number; enchantCost: number; repairCost: number; saleMultiplier: number
   recallTargets: RecallTarget[]; recallDelaySeconds: number; images: boolean
 }
 export const Config: Schema<Config> = Schema.intersect([
@@ -22,7 +22,8 @@ export const Config: Schema<Config> = Schema.intersect([
   }).description('物品与颜色'),
   Schema.object({
     dailyLimit: Schema.number().min(1).max(10000).step(1).default(50).description('用户每日钓鱼次数上限'),
-    maxWaitSeconds: Schema.number().min(0).max(3600).step(1).default(40).description('最长钓鱼等待时间（秒）；一批随机等待 1 至该值，0 表示立即结算。'),
+    minWaitSeconds: Schema.number().min(0).max(3600).step(1).default(20).description('最短钓鱼等待时间（s），不得大于最长等待时间。'),
+    maxWaitSeconds: Schema.number().min(0).max(3600).step(1).default(40).description('最长钓鱼等待时间（s）；一批在最短与最长时间之间随机等待，提示显示此最大值。两者均为 0 时立即结算。'),
     timezone: Schema.string().default('Asia/Shanghai').description('每日次数与行情的零点刷新时区'),
   }).description('钓鱼规则'),
   Schema.object({
@@ -34,8 +35,9 @@ export const Config: Schema<Config> = Schema.intersect([
   }).description('市场'),
   Schema.object({
     consumeEnchantBook: Schema.boolean().default(true).description('附魔时消耗一本对应附魔书'),
-    enchantCost: Schema.number().min(0).max(1000000000).step(1).default(500).description('每次附魔消耗绿宝石'),
-    repairCost: Schema.number().min(0).max(1000000000).step(1).default(200).description('修满一次鱼竿耐久消耗绿宝石'),
+    enchantSuccessRate: Schema.number().role('slider').min(0).max(100).step(1).default(50).description('附魔成功概率（%）；100 为必定成功，0 为必定失败。'),
+    enchantCost: Schema.number().min(0).max(1000000000).step(1).default(300).description('每次附魔消耗绿宝石'),
+    repairCost: Schema.number().min(0).max(1000000000).step(1).default(150).description('修满一次鱼竿耐久消耗绿宝石'),
   }).description('附魔与维修'),
   Schema.object({
     recallTargets: Schema.array(Schema.union([
@@ -51,6 +53,9 @@ export const Config: Schema<Config> = Schema.intersect([
   }).description('消息与界面'),
 ])
 export function validateConfig(config: Config) {
+  if (![config.minWaitSeconds, config.maxWaitSeconds].every(value => Number.isSafeInteger(value) && value >= 0 && value <= 3600)) throw new Error('mcfish：钓鱼等待时间必须为 0 至 3600 秒的整数。')
+  if (config.minWaitSeconds > config.maxWaitSeconds) throw new Error('mcfish：最短钓鱼等待时间不得大于最长等待时间。')
+  if (!Number.isSafeInteger(config.enchantSuccessRate) || config.enchantSuccessRate < 0 || config.enchantSuccessRate > 100) throw new Error('mcfish：附魔成功概率必须为 0 至 100 的整数。')
   if (!Number.isSafeInteger(config.repairCost) || config.repairCost < 0) throw new Error('mcfish：维修费用必须为非负整数。')
   if (!Number.isFinite(config.saleMultiplier) || config.saleMultiplier < 0 || config.saleMultiplier > 10) throw new Error('mcfish：基础出售倍率必须在 0 至 10 之间。')
   if (config.marketMinIncrease < -50 || config.marketMaxIncrease < -50) throw new Error('mcfish：行情跌幅不能超过 50%。')

@@ -111,7 +111,7 @@ test('all images have a watermark; help prices and shop durability follow the re
 test('Koishi help uses images when available, falls back when rendering fails, and custom fees match deductions', async () => {
   const app = new App({ prefix: '', autoAuthorize: 1 })
   app.plugin(sqlite, { path: ':memory:' }); const fork = app.plugin(mock)
-  const c = Config({ repairCost: 333, enchantCost: 777, images: true, maxWaitSeconds: 0 })
+  const c = Config({ repairCost: 333, enchantCost: 777, images: true, minWaitSeconds: 0, maxWaitSeconds: 0 })
   app.plugin(plugin, c); await app.start()
   const repo = new GameRepository(app, c)
   const playerId = JSON.stringify(['mock', 'updated'])

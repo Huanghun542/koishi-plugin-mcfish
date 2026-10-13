@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { DOUBLE_PERCENT, LootItem } from '../catalog'
 import type { Config } from '../config'
 import { addItem } from './inventory'
-import { Dice, dice, ensureIdle, equippedRod, GameError, PendingFishing, Player, positive, safeAdd } from './model'
+import { Dice, dice, ensureIdle, equippedRod, GameError, maxDurability, PendingFishing, Player, positive, safeAdd } from './model'
 function draw(table: LootItem[], rng: Dice): LootItem {
   let value = rng(table.reduce((sum, item) => sum + item.weight, 0))
   for (const item of table) { if (value < item.weight) return item; value -= item.weight }
@@ -29,18 +29,30 @@ export function startFishing(player: Player, amount: unknown, config: Config, no
     if (double) doubled++
     drops[item.name] = safeAdd(drops[item.name] || 0, double ? 2 : 1)
   }
-  const seconds = config.maxWaitSeconds > 0 ? rng(config.maxWaitSeconds) + 1 : 0
+  const seconds = config.minWaitSeconds === config.maxWaitSeconds ? config.minWaitSeconds
+    : config.minWaitSeconds + rng(config.maxWaitSeconds - config.minWaitSeconds + 1)
   rod.durability -= casts
   player.casts += casts
-  if (rod.durability === 0) notes.push('鱼竿耐久已耗尽，需维修后继续使用。')
   const pending: PendingFishing = { token: randomUUID(), day: player.day, casts, finishAt: now + seconds * 1000, rodId: rod.id, drops, doubled, notes }
   player.pending = pending
   return pending
 }
-export function finishFishing(player: Player, now = Date.now()): PendingFishing | null {
+export function finishFishing(player: Player, now = Date.now(), config?: Config): PendingFishing | null {
   const pending = player.pending
   if (!pending || pending.finishAt > now) return null
   for (const [name, count] of Object.entries(pending.drops)) addItem(player, name, count)
+  // Older pending batches may already contain the premature exhaustion notice.
+  pending.notes = pending.notes.filter(note => note !== '鱼竿耐久已耗尽，需维修后继续使用。')
+  const index = player.rods.findIndex(rod => rod.id === pending.rodId)
+  if (index >= 0 && player.rods[index].durability === 0) {
+    const next = [...player.rods.slice(index + 1), ...player.rods.slice(0, index)].find(rod => rod.durability > 0)
+    if (next) {
+      player.equippedId = next.id
+      pending.notes.push(`当前鱼竿耐久耗尽，已自动切换到【${next.name}】【${next.durability}/${maxDurability(next)}】`)
+    } else {
+      pending.notes.push(`鱼竿耐久已耗尽，需维修后继续使用【维修将消耗${config?.repairCost ?? 150}个绿宝石】`)
+    }
+  }
   player.pending = null
   return pending
 }

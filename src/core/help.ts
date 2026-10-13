@@ -20,13 +20,13 @@ export function helpCommands(config: Config): HelpCommand[] {
   ]
 }
 export function gameplayNotes(config: Config): string[] {
-  const wait = config.maxWaitSeconds === 0 ? '立即结算' : `一批随机等待 1–${config.maxWaitSeconds} 秒`
+  const wait = config.maxWaitSeconds === 0 ? '立即结算' : `一批随机等待 ${config.minWaitSeconds}–${config.maxWaitSeconds} 秒`
   return [
     `新用户获得木钓鱼竿和 100 绿宝石；${wait}。`,
     `每日 ${config.dailyLimit} 次，次数不足或耐久不足时按剩余量钓鱼；${config.timezone} 零点刷新。`,
     `市场每日 ${config.marketMinItems}–${config.marketMaxItems} 种物品涨跌 ${config.marketMinIncrease}% 至 ${config.marketMaxIncrease}%；出售倍率 ${config.saleMultiplier} 倍。附魔书不参与涨跌。`,
-    '仓库最多两页，溢出自动出售；装备中的鱼竿出售后自动装备下一根。',
-    '附魔书：耐久、海之眷顾。成功率 50%，最高三级，失败不返还。耐久额外增加 30/70/120；海之眷顾双倍概率 1%/3%/5%。',
+    '仓库最多两页，溢出自动出售；鱼竿钓鱼耗尽耐久后自动换用有耐久的鱼竿，出售装备中的鱼竿后自动装备下一根。',
+    `附魔书：耐久、海之眷顾。成功率 ${config.enchantSuccessRate}%，最高三级，失败不返还。耐久额外增加 30/70/120；海之眷顾双倍概率 1%/3%/5%。`,
   ]
 }
 export function rules(config: Config): string {

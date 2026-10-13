@@ -12,7 +12,7 @@ const g = require('../lib/game')
 test('SQLite restart preserves rods, enchantments, wallet, market and pending fishing', async () => {
   const root = path.resolve(process.env.MCFISH_TEST_DIR || os.tmpdir())
   const directory = await fs.mkdtemp(path.join(root, 'mcfish-v2-'))
-  const config = Config({ maxWaitSeconds: 0 })
+  const config = Config({ minWaitSeconds: 0, maxWaitSeconds: 0 })
   let app
   try {
     const open = async () => {

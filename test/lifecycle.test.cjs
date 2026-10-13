@@ -10,7 +10,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
 const id = user => JSON.stringify(['mock', user])
 
 test('during a real fishing wait, duplicate casts are blocked and other users can trade', async () => {
-  const config = plugin.Config({ images: false, maxWaitSeconds: 1 })
+  const config = plugin.Config({ images: false, minWaitSeconds: 1, maxWaitSeconds: 1 })
   const app = new App({ prefix: '', autoAuthorize: 1 })
   app.plugin(sqlite, { path: ':memory:' }); const mockFork = app.plugin(mock)
   const fork = app.plugin(plugin, config); await app.start()

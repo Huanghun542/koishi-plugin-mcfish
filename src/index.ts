@@ -53,7 +53,7 @@ export function apply(ctx: Context, config: Config) {
       if (options && Object.keys(options).length) throw new GameError('数量或序号必须是正整数。')
       // Recover persisted fishing after reload/restart exactly once before processing commands.
       const recovered = await repository.run(id, (p, m) => {
-        const result = finishFishing(p)
+        const result = finishFishing(p, Date.now(), config)
         return { result, overflow: trimOverflow(p, m, config), pending: p.pending }
       }, session.username && session.username !== session.userId ? session.username : undefined)
       if (recovered.result) await flow.send(`上次钓鱼已完成。\n${fishingText(recovered.result)}`, 'result')
@@ -114,11 +114,11 @@ export function apply(ctx: Context, config: Config) {
     .action(({ session, options }, amount) => guard(session, async (id, flow) => {
       const pending = await repository.run(id, p => startFishing(p, amount, config))
       for (const note of pending.notes.filter(note => note.includes('耐久'))) await flow.send(note, 'damage')
-      await flow.send(`已开始 ${pending.casts} 次钓鱼，预计最长等待 ${config.maxWaitSeconds} 秒。`, 'waiting')
+      await flow.send(`已开始 ${pending.casts} 次钓鱼。\n本次钓鱼预计等待${config.maxWaitSeconds}秒，请耐心等待...`, 'waiting')
       await wait(pending.finishAt - Date.now())
       if (disposed) return
       const result = await repository.run(id, (p, m) => {
-        const completed = finishFishing(p)
+        const completed = finishFishing(p, Date.now(), config)
         if (!completed) throw new GameError('本次钓鱼尚未完成，请稍后查看仓库。', 'waiting')
         return { completed, overflow: trimOverflow(p, m, config) }
       })
