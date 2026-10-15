@@ -8,7 +8,7 @@ export function addItem(player: Player, name: string, count: number) {
   player.inventory[name] = safeAdd(player.inventory[name] || 0, count)
 }
 export function removeItem(player: Player, name: string, count: number) {
-  if ((player.inventory[name] || 0) < count) throw new GameError(`${name}数量不足。`, 'trade')
+  if ((player.inventory[name] || 0) < count) throw new GameError(`「${name}」数量不足 | 本次需要${count}件，仓库内现有${player.inventory[name] || 0}件`, 'trade')
   player.inventory[name] -= count
   if (!player.inventory[name]) delete player.inventory[name]
 }
@@ -49,5 +49,5 @@ export function trimOverflow(player: Player, market: Market, config: Config): Ov
   return overflow
 }
 export function overflowText(overflow: Overflow): string {
-  return overflow.count ? `仓库超过两页，已自动出售 ${overflow.count} 件物品，获得 ${overflow.earned} 绿宝石。` : ''
+  return overflow.count ? `仓库超过两页，已自动出售${overflow.count}件溢出物品，获得${overflow.earned}个绿宝石 | 可使用「仓库」查看剩余物品` : ''
 }

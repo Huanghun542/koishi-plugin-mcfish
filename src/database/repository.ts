@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { Context } from 'koishi'
 import type { Config } from '../config'
-import { dayKey, Market, migratePlayer, Player, refreshMarket, resetDay } from '../game'
+import { dayKey, Market, migratePlayer, Player, refreshMarket, resetDay, syncDurability } from '../game'
 import { cleanUsername, LeaderboardEntry, maskUserId, playerIdentity } from '../core/leaderboard'
 declare module 'koishi' {
   interface Tables {
@@ -30,6 +30,7 @@ export class GameRepository {
         const [row] = await db.get('mcfish_player', { id })
         const [marketRow] = await db.get('mcfish_market', { id: 'global' })
         const player = migratePlayer(row?.state, id)
+        syncDurability(player, this.config)
         const market = marketRow?.state?.increases ? marketRow.state : { day: '', increases: {} }
         const day = dayKey(new Date(), this.config.timezone)
         resetDay(player, day)

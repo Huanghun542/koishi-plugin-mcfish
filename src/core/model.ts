@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomInt, randomUUID } from 'node:crypto'
-import { DURABILITY_BONUS, normalizeName, RODS } from '../catalog'
+import { DOUBLE_PERCENT, DURABILITY_BONUS, normalizeName, RODS } from '../catalog'
+import type { Config, EnchantBonuses } from '../config'
 export class GameError extends Error {
   constructor(message: string, public target: import('../config').RecallTarget = 'notice') { super(message) }
 }
 export interface Rod { id: string; name: string; durability: number; baseDurability: number; unbreaking: number; luck: number }
 export interface PendingFishing { token: string; day: string; casts: number; finishAt: number; rodId: string; drops: Record<string, number>; doubled: number; notes: string[] }
+export interface PendingRodSale { rodIds: string[]; expiresAt: number; scope: string }
 export interface Player {
   version: 2; id: string; wallet: number; rods: Rod[]; equippedId: string | null
   inventory: Record<string, number>; day: string; casts: number; pending: PendingFishing | null
+  pendingRodSale?: PendingRodSale
 }
 export interface Market { day: string; increases: Record<string, number>; signature?: string }
 export type Dice = (max: number) => number
@@ -36,7 +39,14 @@ export function newRod(name: string): Rod {
   if (!definition) throw new GameError('铁匠铺没有这种鱼竿。')
   return { id: randomUUID(), name: definition.name, durability: definition.durability, baseDurability: definition.durability, unbreaking: 0, luck: 0 }
 }
-export function maxDurability(rod: Rod): number { return rod.baseDurability + DURABILITY_BONUS[rod.unbreaking] }
+function levelBonus(level: number, values: EnchantBonuses | undefined, fallback: number[]): number {
+  return level === 0 ? 0 : values?.[`level${level}` as keyof EnchantBonuses] ?? fallback[level]
+}
+export function maxDurability(rod: Rod, config?: Config): number { return rod.baseDurability + levelBonus(rod.unbreaking, config?.unbreakingBonuses, DURABILITY_BONUS) }
+export function luckPercent(rod: Rod, config: Config): number { return levelBonus(rod.luck, config.luckBonuses, DOUBLE_PERCENT) }
+export function syncDurability(player: Player, config: Config) {
+  for (const rod of player.rods) rod.durability = Math.min(rod.durability, maxDurability(rod, config))
+}
 export function createPlayer(id: string): Player {
   const rod = newRod('木钓鱼竿')
   return { version: 2, id, wallet: 100, rods: [rod], equippedId: rod.id, inventory: {}, day: '', casts: 0, pending: null }

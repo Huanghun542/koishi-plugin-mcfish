@@ -8,9 +8,10 @@ export function helpCommands(config: Config): HelpCommand[] {
     { command: '仓库 / 钓鱼钱包', description: '查看鱼竿、渔获或绿宝石余额' },
     { command: '市场 / 铁匠铺', description: '查看当日收购价或固定商品' },
     { command: '福布斯排行榜', description: '当前平台余额前十名，QQ 号脱敏' },
-    { command: '购买 XX N', description: '购买 N 件鱼竿或附魔书' },
+    { command: '购买 XX N', description: '购买鱼竿或附魔书，购竿自动装备' },
     { command: '出售 XX N', description: '出售 N 件指定物品' },
     { command: '出售 钓鱼竿 N', description: '出售序号 N 的鱼竿，回收价为 0' },
+    { command: '确认 / 取消出售', description: `钻石及以上鱼竿需在 ${config.saleConfirmSeconds}s 内确认` },
     { command: '一键出售', description: '保留鱼竿、附魔书和稀有物品' },
     { command: '装备 N / 卸下鱼竿', description: '按仓库序号装备，或卸下鱼竿' },
     { command: '维修 N', description: `${config.repairCost} 绿宝石，补满指定鱼竿耐久` },
@@ -26,7 +27,7 @@ export function gameplayNotes(config: Config): string[] {
     `每日 ${config.dailyLimit} 次，次数不足或耐久不足时按剩余量钓鱼；${config.timezone} 零点刷新。`,
     `市场每日 ${config.marketMinItems}–${config.marketMaxItems} 种物品涨跌 ${config.marketMinIncrease}% 至 ${config.marketMaxIncrease}%；出售倍率 ${config.saleMultiplier} 倍。附魔书不参与涨跌。`,
     '仓库最多两页，溢出自动出售；鱼竿钓鱼耗尽耐久后自动换用有耐久的鱼竿，出售装备中的鱼竿后自动装备下一根。',
-    `附魔书：耐久、海之眷顾。成功率 ${config.enchantSuccessRate}%，最高三级，失败不返还。耐久额外增加 30/70/120；海之眷顾双倍概率 1%/3%/5%。`,
+    `附魔书：耐久、海之眷顾。成功率 ${config.enchantSuccessRate}%，最高三级，失败不返还。一级至三级总加成：耐久 +${config.unbreakingBonuses.level1}/+${config.unbreakingBonuses.level2}/+${config.unbreakingBonuses.level3}；双倍概率 ${config.luckBonuses.level1}%/${config.luckBonuses.level2}%/${config.luckBonuses.level3}%。`,
   ]
 }
 export function rules(config: Config): string {

@@ -26,7 +26,7 @@ test('quotes round down below .5, up at .5, and match text, warehouse, explicit 
   const p = g.createPlayer('rounding'); p.inventory['生鳕鱼'] = 2
   assert(render.warehouseText(p, market, c).includes('收购总价 6'))
   assert(render.marketHtml(p, market, c)[0].includes('今日收购 3 绿宝石'))
-  assert.match(g.sell(p, '生鳕鱼', 2, market, c), /获得 6 绿宝石/)
+  assert.match(g.sell(p, '生鳕鱼', 2, market, c), /获得6个绿宝石/)
   assert.equal(p.wallet, 106)
   p.rods = Array.from({ length: 30 }, () => g.newRod('木钓鱼竿'))
   p.equippedId = p.rods[0].id; p.inventory['生鳕鱼'] = 2
@@ -52,13 +52,13 @@ test('repair fees follow configuration, support zero fees and leave state intact
   const player = g.createPlayer('repair'), config = Config({ repairCost: 333 })
   player.rods[0].durability = 1
   const before = structuredClone(player)
-  assert.throws(() => g.repair(player, 1, config), /333 绿宝石/)
+  assert.throws(() => g.repair(player, 1, config), /333个绿宝石/)
   assert.deepEqual(player, before)
   player.wallet = 400
-  assert.match(g.repair(player, 1, config), /消耗 333 绿宝石/)
+  assert.match(g.repair(player, 1, config), /消耗333个绿宝石/)
   assert.equal(player.wallet, 67); assert.equal(player.rods[0].durability, 30)
   player.rods[0].durability = 1
-  assert.match(g.repair(player, 1, Config({ repairCost: 0 })), /消耗 0 绿宝石/)
+  assert.match(g.repair(player, 1, Config({ repairCost: 0 })), /消耗0个绿宝石/)
   assert.equal(player.wallet, 67)
 })
 test('negative markets cover the -50 boundary, reject lower values and refresh saved positive quotes', () => {
@@ -127,7 +127,7 @@ test('Koishi help uses images when available, falls back when rendering fails, a
     render.renderPages = async () => { throw new Error('intentional renderer failure') }
     await client.shouldReply('钓鱼帮助', /维修 N：333 绿宝石/)
     await repo.run(playerId, p => { p.wallet = 1000; p.rods[0].durability = 1 })
-    await client.shouldReply('维修 1', /消耗 333 绿宝石/)
+    await client.shouldReply('维修 1', /消耗333个绿宝石/)
     assert.equal((await repo.run(playerId, p => p.wallet)), 667)
   } finally { render.renderPages = original; delete app.puppeteer; await fork.dispose(); await app.stop() }
 })

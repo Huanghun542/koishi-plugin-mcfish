@@ -56,7 +56,7 @@ export function warehouseHtml(player: Player, market: Market, config: Config, us
   return pages.map((rows, page) => {
     const body = rows.map(row => `<div class="row">${row.rods ? row.rods.map(rod => {
       const index = player.rods.findIndex(r => r.id === rod.id) + 1
-      return `<div class="entry"><span class="number">${index}</span>${icon(rod.name)}<div class="copy">${nameHtml(rod.name, config)}<small>耐久 ${rod.durability}/${maxDurability(rod)}　耐久附魔 ${rod.unbreaking}　海之眷顾 ${rod.luck}</small></div>${rod.id === player.equippedId ? '<span class="tag">已装备</span>' : ''}</div>`
+      return `<div class="entry"><span class="number">${index}</span>${icon(rod.name)}<div class="copy">${nameHtml(rod.name, config)}<small>耐久 ${rod.durability}/${maxDurability(rod, config)}　耐久附魔 ${rod.unbreaking}　海之眷顾 ${rod.luck}</small></div>${rod.id === player.equippedId ? '<span class="tag">已装备</span>' : ''}</div>`
     }).join('') : row.items!.map(([name, count]) => `<div class="entry">${icon(name)}<div class="copy">${nameHtml(name, config)}<small>×${count}　收购总价 ${salePrice(name, market, config) * count}</small></div></div>`).join('') + (row.items!.length === 1 ? '<div class="spacer"></div>' : '')}</div>`).join('')
     return card(`${username}的仓库`, player.wallet, '仓库背景', body, `第 ${page + 1}/${pages.length} 页　今日钓鱼 ${player.casts}/${config.dailyLimit}\n装备 N · 维修 N · 附魔 N 附魔书名称`)
   })
@@ -115,7 +115,7 @@ export function leaderboardHtml(entries: LeaderboardEntry[]): string[] {
 }
 export function warehouseText(player: Player, market: Market, config: Config): string {
   return [`仓库 · 绿宝石 ${player.wallet} · 今日钓鱼 ${player.casts}/${config.dailyLimit}`,
-    ...player.rods.map((rod, i) => `${i + 1}. ${rod.name}${rod.id === player.equippedId ? '（已装备）' : ''} 耐久 ${rod.durability}/${maxDurability(rod)}，耐久附魔 ${rod.unbreaking}，海之眷顾 ${rod.luck}`),
+    ...player.rods.map((rod, i) => `${i + 1}. ${rod.name}${rod.id === player.equippedId ? '（已装备）' : ''} 耐久 ${rod.durability}/${maxDurability(rod, config)}，耐久附魔 ${rod.unbreaking}，海之眷顾 ${rod.luck}`),
     ...Object.entries(player.inventory).map(([name, count]) => `${name} ×${count}　收购总价 ${salePrice(name, market, config) * count}`)].join('\n')
 }
 export async function renderPages(ctx: Context, html: string[]): Promise<string[]> {

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from 'node:crypto'
-import { DOUBLE_PERCENT, LootItem } from '../catalog'
+import { LootItem } from '../catalog'
 import type { Config } from '../config'
 import { addItem } from './inventory'
-import { Dice, dice, ensureIdle, equippedRod, GameError, maxDurability, PendingFishing, Player, positive, safeAdd } from './model'
+import { Dice, dice, ensureIdle, equippedRod, GameError, luckPercent, maxDurability, PendingFishing, Player, positive, safeAdd, syncDurability } from './model'
 function draw(table: LootItem[], rng: Dice): LootItem {
   let value = rng(table.reduce((sum, item) => sum + item.weight, 0))
   for (const item of table) { if (value < item.weight) return item; value -= item.weight }
@@ -12,6 +12,7 @@ function draw(table: LootItem[], rng: Dice): LootItem {
 export function startFishing(player: Player, amount: unknown, config: Config, now = Date.now(), rng: Dice = dice): PendingFishing {
   ensureIdle(player)
   const requested = positive(amount)
+  syncDurability(player, config)
   const remaining = Math.max(0, config.dailyLimit - player.casts)
   if (!remaining) throw new GameError('今日钓鱼次数已用完，明天再来吧', 'notice')
   const rod = equippedRod(player)
@@ -25,7 +26,7 @@ export function startFishing(player: Player, amount: unknown, config: Config, no
   let doubled = 0
   for (let i = 0; i < casts; i++) {
     const item = draw(config.lootTable, rng)
-    const double = rod.luck > 0 && rng(100) < DOUBLE_PERCENT[rod.luck]
+    const double = rod.luck > 0 && rng(10000) < Math.round(luckPercent(rod, config) * 100)
     if (double) doubled++
     drops[item.name] = safeAdd(drops[item.name] || 0, double ? 2 : 1)
   }
@@ -48,7 +49,7 @@ export function finishFishing(player: Player, now = Date.now(), config?: Config)
     const next = [...player.rods.slice(index + 1), ...player.rods.slice(0, index)].find(rod => rod.durability > 0)
     if (next) {
       player.equippedId = next.id
-      pending.notes.push(`当前鱼竿耐久耗尽，已自动切换到【${next.name}】【${next.durability}/${maxDurability(next)}】`)
+      pending.notes.push(`当前鱼竿耐久耗尽，已自动切换到【${next.name}】【${next.durability}/${maxDurability(next, config)}】`)
     } else {
       pending.notes.push(`鱼竿耐久已耗尽，需维修后继续使用【维修将消耗${config?.repairCost ?? 150}个绿宝石】`)
     }

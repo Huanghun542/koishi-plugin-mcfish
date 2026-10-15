@@ -92,7 +92,7 @@ test('luck levels use exact 1%, 3%, 5% boundaries; doubling consumes one cast an
     for (let chance = 0; chance < 100; chance++) {
       const p = funded(); p.rods[0].luck = level
       let call = 0
-      const result = g.startFishing(p, 1, config, 0, () => call++ === 0 ? 0 : chance)
+      const result = g.startFishing(p, 1, config, 0, () => call++ === 0 ? 0 : chance * 100)
       assert.equal(result.drops['生鳕鱼'], chance < DOUBLE_PERCENT[level] ? 2 : 1)
       assert.equal(p.casts, 1); assert.equal(p.rods[0].durability, 29)
     }
@@ -123,7 +123,7 @@ test('100% increase doubles prices, other items sell at base value, bulk sale ke
   const p = funded(), m = { day: 'day', increases: { 生鳕鱼: 100 } }
   g.addItem(p, '生鳕鱼', 2); g.addItem(p, '骨头', 3)
   assert.equal(g.salePrice('生鳕鱼', m, config), 10)
-  assert.match(g.sellAll(p, m, config), /26 绿宝石/)
+  assert.match(g.sellAll(p, m, config), /26个绿宝石/)
   assert.equal(p.wallet, 100026); assert.equal(p.rods.length, 1); assert.deepEqual(p.inventory, {})
 })
 test('blacksmith has only 5 plain rod types and 2 books; trading cannot restock it', () => {
@@ -131,8 +131,9 @@ test('blacksmith has only 5 plain rod types and 2 books; trading cannot restock 
   const p = funded(); g.buy(p, '铁钓鱼竿', 2, config)
   assert.equal(p.rods.length, 3); assert(p.rods.slice(1).every(r => r.unbreaking === 0 && r.luck === 0 && r.durability === 50))
   assert.throws(() => g.buy(p, '生鳕鱼', 1, config), /仅出售/)
-  assert.match(g.sell(p, '木钓鱼竿', 1, market(), config), /已自动装备 铁钓鱼竿/)
-  assert.equal(p.rods.length, 2); assert.equal(p.equippedId, p.rods[0].id)
+  const equippedId = p.equippedId
+  assert.match(g.sell(p, '木钓鱼竿', 1, market(), config), /已出售「木钓鱼竿」/)
+  assert.equal(p.rods.length, 2); assert.equal(p.equippedId, equippedId)
 })
 test('warehouse keeps rods first, one per row; regular items are two per row', () => {
   const p = funded(); g.buy(p, '铁钓鱼竿', 1, config)
@@ -174,7 +175,7 @@ test('v1 migration preserves wallet, equipped rod and inventory without another 
 test('custom loot names that overlap old aliases can still be sold by their exact name', () => {
   const c = Config({ lootTable: config.lootTable.map((item, i) => i === 0 ? { ...item, name: '鳕鱼', price: 23 } : item) })
   const p = funded(); p.inventory['鳕鱼'] = 3
-  assert.match(g.sell(p, '鳕鱼', 2, market(), c), /获得 46 绿宝石/)
+  assert.match(g.sell(p, '鳕鱼', 2, market(), c), /获得46个绿宝石/)
   assert.equal(p.inventory['鳕鱼'], 1)
 })
 test('changing market settings regenerates quotes in the configured range on the same day', () => {

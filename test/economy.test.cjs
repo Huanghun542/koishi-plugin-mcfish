@@ -9,7 +9,7 @@ test('one-click sale preserves rare loot and every enchant book even with rarity
   const p = g.createPlayer('seller')
   p.inventory = { 生鳕鱼: 4, 骨头: 3, 海洋之心: 2, 耐久附魔书: 5, 海之眷顾附魔书: 1, 自定义附魔书: 1 }
   const c = Config({ lootTable: config.lootTable.map(item => item.name.includes('附魔书') ? { ...item, rare: false } : item) })
-  assert.match(g.sellAll(p, market, c), /7 件普通物品/)
+  assert.match(g.sellAll(p, market, c), /7件普通物品/)
   assert.equal(p.wallet, 126)
   assert.deepEqual(p.inventory, { 海洋之心: 2, 耐久附魔书: 5, 海之眷顾附魔书: 1, 自定义附魔书: 1 })
   assert.equal(p.rods.length, 1)
@@ -22,24 +22,26 @@ test('a configured rare custom item is protected; explicit sale remains availabl
   const p = g.createPlayer('seller'); p.inventory = { 稀有石头: 2, 木棍: 1 }
   g.sellAll(p, market, c)
   assert.deepEqual(p.inventory, { 稀有石头: 2 })
-  assert.match(g.sell(p, '稀有石头', 1, market, c), /获得 100 绿宝石/)
+  assert.match(g.sell(p, '稀有石头', 1, market, c), /获得100个绿宝石/)
 })
 test('generic rod sale selects the exact warehouse index and automatically equips the next rod', () => {
   const p = g.createPlayer('seller')
   p.rods.push(g.newRod('铁钓鱼竿'), g.newRod('钻石钓鱼竿'))
   const equippedId = p.equippedId, lastId = p.rods[2].id, wallet = p.wallet
-  assert.match(g.sell(p, '钓鱼竿', 2, market, config), /获得 0 绿宝石/)
+  assert.match(g.sell(p, '钓鱼竿', 2, market, config), /获得0个绿宝石/)
   assert.equal(p.wallet, wallet); assert.equal(p.rods.length, 2); assert.equal(p.equippedId, equippedId)
-  assert.match(g.sell(p, '钓鱼竿', 1, market, config), /已自动装备 钻石钓鱼竿/)
+  assert.match(g.sell(p, '钓鱼竿', 1, market, config), /已自动装备「钻石钓鱼竿」/)
   assert.equal(p.equippedId, lastId)
   assert.throws(() => g.sell(p, '钓鱼竿', 2, market, config), /序号不存在/)
-  g.sell(p, '钓鱼竿', undefined, market, config); assert.equal(p.rods.length, 0); assert.equal(p.equippedId, null)
+  g.sell(p, '钓鱼竿', undefined, market, config); g.confirmRodSale(p)
+  assert.equal(p.rods.length, 0); assert.equal(p.equippedId, null)
 })
 test('named, enchanted and overflowing rods all have zero resale value', () => {
   const p = g.createPlayer('seller'); p.rods.push(g.newRod('下界合金钓鱼竿'))
   p.rods[1].unbreaking = 3; p.rods[1].luck = 3
   const wallet = p.wallet
   g.sell(p, '下界合金钓鱼竿', 1, { day: '', increases: { 下界合金钓鱼竿: 200 } }, config)
+  g.confirmRodSale(p); assert.equal(p.rods.length, 1)
   assert.equal(p.wallet, wallet)
   for (const rod of RODS) assert.equal(g.salePrice(rod.name, market, config), 0)
 })

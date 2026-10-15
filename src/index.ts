@@ -3,7 +3,7 @@ import { Context, Session } from 'koishi'
 import { SOURCE_URL } from './catalog'
 import { Config, RecallTarget, validateConfig } from './config'
 import { GameRepository } from './database'
-import { buy, dayKey, enchant, equip, finishFishing, fishingText, GameError, Market, overflowText,
+import { buy, cancelRodSale, confirmRodSale, dayKey, enchant, equip, finishFishing, fishingText, GameError, Market, overflowText,
   leaderboardText, Player, repair, salePrice, sell, sellAll, startFishing, trimOverflow, unequip } from './game'
 import { MessageFlow } from './core/messages'
 import { marketChange, rules } from './core/help'
@@ -81,6 +81,7 @@ export function apply(ctx: Context, config: Config) {
     await flow.send(text)
   }
   const command = (name: string, description: string) => ctx.command(`mcfish.${name}`, description)
+  const saleScope = (session: Session) => JSON.stringify([session.platform, session.selfId, session.guildId || '', session.channelId || '', session.isDirect || false])
   async function help(flow: MessageFlow) {
     if (config.images && ctx.puppeteer) {
       try {
@@ -132,11 +133,15 @@ export function apply(ctx: Context, config: Config) {
   ctx.command('mcfish.buy <物品:string> [数量:string]', '购买鱼竿或附魔书').alias('购买')
     .action(({ session, options }, item, quantity) => guard(session, (id, flow) => mutation(id, flow, p => buy(p, item, quantity, config)), options))
   ctx.command('mcfish.sell <物品:string> [数量:string]', '出售物品；出售 钓鱼竿 N 按鱼竿序号出售').alias('出售')
-    .action(({ session, options }, item, quantity) => guard(session, (id, flow) => mutation(id, flow, (p, m) => sell(p, item, quantity, m, config)), options))
+    .action(({ session, options }, item, quantity) => guard(session, (id, flow) => mutation(id, flow, (p, m) => sell(p, item, quantity, m, config, saleScope(session!))), options))
+  command('confirm', '确认出售高阶鱼竿').alias('确认')
+    .action(({ session }) => guard(session, (id, flow) => mutation(id, flow, p => confirmRodSale(p, saleScope(session!)))))
+  command('cancel-sale', '取消待确认的鱼竿出售').alias('取消出售')
+    .action(({ session }) => guard(session, (id, flow) => mutation(id, flow, p => cancelRodSale(p, saleScope(session!)))))
   command('sell-all', '出售普通物品，保留鱼竿、附魔书和稀有物品').alias('一键出售')
     .action(({ session }) => guard(session, (id, flow) => mutation(id, flow, (p, m) => sellAll(p, m, config))))
   ctx.command('mcfish.equip <序号:string>', '按仓库序号装备鱼竿').alias('装备')
-    .action(({ session, options }, index) => guard(session, (id, flow) => mutation(id, flow, p => equip(p, index)), options))
+    .action(({ session, options }, index) => guard(session, (id, flow) => mutation(id, flow, p => equip(p, index, config)), options))
   command('unequip', '卸下当前鱼竿').alias('卸下鱼竿')
     .action(({ session }) => guard(session, (id, flow) => mutation(id, flow, p => unequip(p))))
   ctx.command('mcfish.repair <序号:string>', `花费 ${config.repairCost} 绿宝石修满鱼竿耐久`).alias('维修')
