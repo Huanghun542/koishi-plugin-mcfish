@@ -65,7 +65,7 @@ test('books never enter premium markets and cannot be bought and resold for prof
     const spent = 10000 - p.wallet
     g.sell(p, book, 10, quote, config)
     assert.equal(10000 - p.wallet, spent / 2)
-    const c = Config({ lootTable: config.lootTable.map(item => item.name === book ? { ...item, price: 1 } : item) })
+    const c = Config({ lootTable: [...config.lootTable.filter(item => item.name !== book), { name: book, price: 1, weight: 1, rare: true }] })
     assert.equal(g.salePrice(book, quote, c), 1)
     const inflated = Config({ saleMultiplier: 10 })
     assert.equal(g.salePrice(book, quote, inflated), g.basePrice(book, inflated))

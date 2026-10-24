@@ -43,7 +43,7 @@ test('plugin disposal during a wait preserves reserved casts and recovers stored
     assert.deepEqual(await repo.run(id('restart'), p => p.pending), pending)
     await repo.run(id('restart'), p => { p.pending.finishAt = Date.now() - 10 })
     app.plugin(plugin, config)
-    await client.shouldReply('钓鱼钱包', [/上次钓鱼已完成/, /100 绿宝石/])
+    await client.shouldReply('钓鱼钱包', [/上次钓鱼已完成/, /未触发双倍产出/, /100 绿宝石/])
     const p = await repo.run(id('restart'), p => p)
     assert.equal(p.casts, 3); assert.equal(p.rods[0].durability, 27); assert.equal(p.pending, null)
     assert.equal(Object.values(p.inventory).reduce((a, b) => a + b, 0), 3)

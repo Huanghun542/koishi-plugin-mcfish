@@ -6,7 +6,7 @@ import type {} from 'koishi-plugin-puppeteer'
 import type { Config } from './config'
 import { BOOKS, RODS } from './catalog'
 import { gameplayNotes, helpCommands, marketChange } from './core/help'
-import { inventoryPages, LeaderboardEntry, maxDurability, Player, Market, salePrice, shopItems, truncateUsername } from './game'
+import { dailyFishingLimit, enchantBonus, inventoryPages, LeaderboardEntry, maxDurability, Player, Market, salePrice, shopItems, truncateUsername } from './game'
 
 export const WIDTH = 751, HEIGHT = 1238
 const root = path.resolve(__dirname, '../assets')
@@ -58,7 +58,7 @@ export function warehouseHtml(player: Player, market: Market, config: Config, us
       const index = player.rods.findIndex(r => r.id === rod.id) + 1
       return `<div class="entry"><span class="number">${index}</span>${icon(rod.name)}<div class="copy">${nameHtml(rod.name, config)}<small>耐久 ${rod.durability}/${maxDurability(rod, config)}　耐久附魔 ${rod.unbreaking}　海之眷顾 ${rod.luck}</small></div>${rod.id === player.equippedId ? '<span class="tag">已装备</span>' : ''}</div>`
     }).join('') : row.items!.map(([name, count]) => `<div class="entry">${icon(name)}<div class="copy">${nameHtml(name, config)}<small>×${count}　收购总价 ${salePrice(name, market, config) * count}</small></div></div>`).join('') + (row.items!.length === 1 ? '<div class="spacer"></div>' : '')}</div>`).join('')
-    return card(`${username}的仓库`, player.wallet, '仓库背景', body, `第 ${page + 1}/${pages.length} 页　今日钓鱼 ${player.casts}/${config.dailyLimit}\n装备 N · 维修 N · 附魔 N 附魔书名称`)
+    return card(`${username}的仓库`, player.wallet, '仓库背景', body, `第 ${page + 1}/${pages.length} 页　今日钓鱼 ${player.casts}/${dailyFishingLimit(player, config)}\n饵钓 ${player.lureLevel || 0} 级 · 额外每日 ${enchantBonus('lure', player.lureLevel || 0, config)} 次\n装备 N · 维修 N · 附魔 N 附魔书名称`)
   })
 }
 export function marketHtml(player: Player, market: Market, config: Config): string[] {
@@ -73,7 +73,8 @@ export function marketHtml(player: Player, market: Market, config: Config): stri
 export function shopHtml(player: Player, config: Config): string[] {
   const body = shopItems(config).map(item => {
     const rod = RODS.find(value => value.name === item.name)
-    const detail = rod ? `耐久 ${rod.durability}/${rod.durability}　|　耐久附魔 0　|　海之眷顾 0` : `${item.price} 绿宝石 / 件`
+    const detail = rod ? `耐久 ${rod.durability}/${rod.durability}　|　耐久附魔 0　|　海之眷顾 0`
+      : `${item.price} 绿宝石 / 件${item.name === BOOKS[2] ? '　|　绑定用户，增加每日次数' : ''}`
     return `<div class="row"><div class="entry">${icon(item.name)}<div class="copy"><div class="shop-title">${nameHtml(item.name, config)}${rod ? `<span class="shop-price">${item.price} 绿宝石</span>` : ''}</div><small>${detail}</small></div></div></div>`
   }).join('')
   return [card('铁匠铺', player.wallet, '工匠铺背景', body, `鱼竿均为无附魔、满耐久\n维修 ${config.repairCost} 绿宝石 · 购买 物品名称 数量`, `
@@ -83,7 +84,8 @@ export function shopHtml(player: Player, config: Config): string[] {
 export function shopText(player: Player, config: Config): string {
   return `铁匠铺（鱼竿均无附魔、满耐久）：\n${shopItems(config).map(item => {
     const rod = RODS.find(value => value.name === item.name)
-    return rod ? `${item.name}：${item.price} 绿宝石，耐久 ${rod.durability}/${rod.durability} | 耐久附魔 0 | 海之眷顾 0` : `${item.name}：${item.price} 绿宝石`
+    return rod ? `${item.name}：${item.price} 绿宝石，耐久 ${rod.durability}/${rod.durability} | 耐久附魔 0 | 海之眷顾 0`
+      : `${item.name}：${item.price} 绿宝石${item.name === BOOKS[2] ? ' | 绑定用户，增加每日次数' : ''}`
   }).join('\n')}`
 }
 export function helpHtml(config: Config): string[] {
@@ -93,11 +95,12 @@ export function helpHtml(config: Config): string[] {
   const body = `<div class="help-grid">${commandBody}</div><div class="help-caption">简易玩法</div><div class="help-notes">${notes}</div>`
   return [card('钓鱼帮助', null, '帮助菜单背景', body, 'XX 为物品名，N 为数量或鱼竿序号\n省略数量默认为 1 · “钓鱼”默认一次', `
     h1{top:165px;height:54px;line-height:54px}
+    footer{top:1095px}
     .help-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 9px}
     .help-item{min-height:56px;padding:6px 8px;border:1px solid rgba(150,222,237,.45);border-radius:6px;background:rgba(15,43,55,.85);overflow:hidden}
     .help-item b{color:#fff;font-size:16px;line-height:20px;text-overflow:ellipsis}.help-item small{font-size:12px;line-height:18px;color:#d3e5e8;white-space:normal;overflow-wrap:anywhere}
     .help-caption{margin:10px 0 5px;color:#193548;font-size:18px;text-align:center;border-bottom:2px solid #759ba6;padding-bottom:3px}
-    .help-notes{padding:8px 10px;border-radius:6px;background:rgba(15,43,55,.85);color:#fff;font-size:14px;line-height:23px}
+    .help-notes{padding:8px 10px;border-radius:6px;background:rgba(15,43,55,.85);color:#fff;font-size:13px;line-height:20px}
     .help-note{white-space:normal;overflow-wrap:anywhere;margin-bottom:4px}.help-note:last-child{margin-bottom:0}
   `)]
 }
@@ -114,7 +117,7 @@ export function leaderboardHtml(entries: LeaderboardEntry[]): string[] {
   `)]
 }
 export function warehouseText(player: Player, market: Market, config: Config): string {
-  return [`仓库 · 绿宝石 ${player.wallet} · 今日钓鱼 ${player.casts}/${config.dailyLimit}`,
+  return [`仓库 · 绿宝石 ${player.wallet} · 今日钓鱼 ${player.casts}/${dailyFishingLimit(player, config)} · 饵钓 ${player.lureLevel || 0} 级`,
     ...player.rods.map((rod, i) => `${i + 1}. ${rod.name}${rod.id === player.equippedId ? '（已装备）' : ''} 耐久 ${rod.durability}/${maxDurability(rod, config)}，耐久附魔 ${rod.unbreaking}，海之眷顾 ${rod.luck}`),
     ...Object.entries(player.inventory).map(([name, count]) => `${name} ×${count}　收购总价 ${salePrice(name, market, config) * count}`)].join('\n')
 }

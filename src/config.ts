@@ -2,14 +2,24 @@
 import { Schema } from 'koishi'
 import { DEFAULT_LOOT, isEnchantBook, LootItem, RODS } from './catalog'
 export type RecallTarget = 'result' | 'equipment' | 'damage' | 'waiting' | 'trade' | 'notice'
-export interface EnchantBonuses { level1: number; level2: number; level3: number }
+export type EnchantBonuses = Record<`level${number}`, number>
 export interface Config {
   lootTable: LootItem[]; normalColor: string; rareColor: string
   dailyLimit: number; minWaitSeconds: number; maxWaitSeconds: number; timezone: string
   marketMinIncrease: number; marketMaxIncrease: number; marketMinItems: number; marketMaxItems: number
-  consumeEnchantBook: boolean; enchantSuccessRate: number; enchantCost: number; repairCost: number; saleMultiplier: number
-  unbreakingBonuses: EnchantBonuses; luckBonuses: EnchantBonuses; saleConfirmSeconds: number
+  consumeEnchantBook: boolean; enchantSuccessRate: number; luckSuccessRate: number; lureSuccessRate: number
+  enchantCost: number; repairCost: number; saleMultiplier: number
+  unbreakingMaxLevel: number; luckMaxLevel: number; lureMaxLevel: number
+  unbreakingBonuses: EnchantBonuses; luckBonuses: EnchantBonuses; lureBonuses: EnchantBonuses; saleConfirmSeconds: number
+  enchantFailureDowngrade: boolean; quoteMessages: boolean; forwardFishingResults: boolean
   recallTargets: RecallTarget[]; recallDelaySeconds: number; images: boolean
+}
+function bonusSchema(label: string, step: number, maximum: number, decimals = false) {
+  return Schema.object(Object.fromEntries(Array.from({ length: 10 }, (_, index) => {
+    const level = index + 1
+    return [`level${level}`, Schema.number().min(0).max(maximum).step(decimals ? 0.01 : 1).default(level * step)
+      .description(`${level}级${label}：总加成${decimals ? '（%）' : ''}`)]
+  }))).description(`${label}各级总加成（不累加前一级；生效等级内递增或相等）`)
 }
 export const Config: Schema<Config> = Schema.intersect([
   Schema.object({
@@ -38,21 +48,21 @@ export const Config: Schema<Config> = Schema.intersect([
   }).description('市场'),
   Schema.object({
     consumeEnchantBook: Schema.boolean().default(true).description('附魔时消耗一本对应附魔书'),
-    enchantSuccessRate: Schema.number().role('slider').min(0).max(100).step(1).default(50).description('附魔成功概率（%）；100 为必定成功，0 为必定失败。'),
+    enchantSuccessRate: Schema.number().role('slider').min(0).max(100).step(1).default(50).description('耐久附魔成功概率（%）；100 为必定成功。'),
+    luckSuccessRate: Schema.number().role('slider').min(0).max(100).step(1).default(50).description('海之眷顾附魔成功概率（%）；100 为必定成功。'),
+    lureSuccessRate: Schema.number().role('slider').min(0).max(100).step(1).default(50).description('饵钓附魔成功概率（%）；100 为必定成功。'),
     enchantCost: Schema.number().min(0).max(1000000000).step(1).default(300).description('每次附魔消耗绿宝石'),
     repairCost: Schema.number().min(0).max(1000000000).step(1).default(150).description('修满一次鱼竿耐久消耗绿宝石'),
-    unbreakingBonuses: Schema.object({
-      level1: Schema.number().min(0).max(1000000).step(1).default(30).description('一级耐久：总增加耐久'),
-      level2: Schema.number().min(0).max(1000000).step(1).default(70).description('二级耐久：总增加耐久'),
-      level3: Schema.number().min(0).max(1000000).step(1).default(120).description('三级耐久：总增加耐久'),
-    }).description('耐久附魔书各级总加成（无需累加前一级，按级别递增或相等）'),
-    luckBonuses: Schema.object({
-      level1: Schema.number().min(0).max(100).step(0.01).default(1).description('一级海之眷顾：总双倍概率（%）'),
-      level2: Schema.number().min(0).max(100).step(0.01).default(3).description('二级海之眷顾：总双倍概率（%）'),
-      level3: Schema.number().min(0).max(100).step(0.01).default(5).description('三级海之眷顾：总双倍概率（%），默认 5 即 5%'),
-    }).description('海之眷顾附魔书各级总加成（无需累加前一级，按级别递增或相等）'),
+    unbreakingMaxLevel: Schema.number().min(1).max(10).step(1).default(3).description('耐久附魔等级上限（最高 10 级）'),
+    luckMaxLevel: Schema.number().min(1).max(10).step(1).default(3).description('海之眷顾附魔等级上限（最高 10 级）'),
+    lureMaxLevel: Schema.number().min(1).max(10).step(1).default(3).description('饵钓附魔等级上限（最高 10 级，绑定用户）'),
+    unbreakingBonuses: bonusSchema('耐久增加值', 20, 1000000),
+    luckBonuses: bonusSchema('海之眷顾双倍概率', 3, 10000, true),
+    lureBonuses: bonusSchema('饵钓额外每日次数', 5, 10000),
   }).description('附魔与维修'),
   Schema.object({
+    quoteMessages: Schema.boolean().default(true).description('发送消息时引用触发指令；与合并转发同时开启时，钓鱼结果只使用合并转发。'),
+    forwardFishingResults: Schema.boolean().default(true).description('将钓鱼结果合并转发，分为基础产物与双倍额外产物两个节点（需适配器支持）。关闭后分两条消息发送。'),
     recallTargets: Schema.array(Schema.union([
       Schema.const('result').description('钓鱼结果'),
       Schema.const('equipment').description('未装备鱼竿'),
@@ -64,19 +74,25 @@ export const Config: Schema<Config> = Schema.intersect([
     recallDelaySeconds: Schema.number().min(0).max(3600).step(1).default(5).description('流程结束后延迟撤回秒数'),
     images: Schema.boolean().default(true).description('使用素材绘制仓库、市场、铁匠铺和排行榜'),
   }).description('消息与界面'),
+  Schema.object({
+    enchantFailureDowngrade: Schema.boolean().default(false).description('附魔失败掉级：开启后失败的对应附魔降低一级，最低 0 级，消耗不返还。'),
+  }).description('实验玩法'),
 ])
 export function validateConfig(config: Config) {
-  for (const [label, bonuses, maximum, scale] of [
-    ['耐久', config.unbreakingBonuses, 1000000, 1], ['海之眷顾', config.luckBonuses, 100, 100],
+  for (const [label, bonuses, maximum, scale, cap, rate] of [
+    ['耐久', config.unbreakingBonuses, 1000000, 1, config.unbreakingMaxLevel, config.enchantSuccessRate],
+    ['海之眷顾', config.luckBonuses, 10000, 100, config.luckMaxLevel, config.luckSuccessRate],
+    ['饵钓', config.lureBonuses, 10000, 1, config.lureMaxLevel, config.lureSuccessRate],
   ] as const) {
-    const values = [bonuses?.level1, bonuses?.level2, bonuses?.level3]
+    if (!Number.isSafeInteger(cap) || cap < 1 || cap > 10) throw new Error(`mcfish：${label}等级上限必须为 1 至 10 的整数。`)
+    if (!Number.isSafeInteger(rate) || rate < 0 || rate > 100) throw new Error(`mcfish：${label}附魔成功概率必须为 0 至 100 的整数。`)
+    const values = Array.from({ length: 10 }, (_, i) => bonuses?.[`level${i + 1}`])
     if (values.some(value => !Number.isFinite(value) || value < 0 || value > maximum || Math.abs(value * scale - Math.round(value * scale)) > 0.000001)) throw new Error(`mcfish：${label}总加成数值无效。`)
-    if (values[0] > values[1] || values[1] > values[2]) throw new Error(`mcfish：${label}总加成须按一级至三级递增或相等。`)
+    if (values.slice(1, cap).some((value, i) => value < values[i])) throw new Error(`mcfish：${label}总加成须按一级至上限递增或相等。`)
   }
   if (!Number.isSafeInteger(config.saleConfirmSeconds) || config.saleConfirmSeconds < 1 || config.saleConfirmSeconds > 300) throw new Error('mcfish：出售确认时限必须为 1 至 300 秒的整数。')
   if (![config.minWaitSeconds, config.maxWaitSeconds].every(value => Number.isSafeInteger(value) && value >= 0 && value <= 3600)) throw new Error('mcfish：钓鱼等待时间必须为 0 至 3600 秒的整数。')
   if (config.minWaitSeconds > config.maxWaitSeconds) throw new Error('mcfish：最短钓鱼等待时间不得大于最长等待时间。')
-  if (!Number.isSafeInteger(config.enchantSuccessRate) || config.enchantSuccessRate < 0 || config.enchantSuccessRate > 100) throw new Error('mcfish：附魔成功概率必须为 0 至 100 的整数。')
   if (!Number.isSafeInteger(config.repairCost) || config.repairCost < 0) throw new Error('mcfish：维修费用必须为非负整数。')
   if (!Number.isFinite(config.saleMultiplier) || config.saleMultiplier < 0 || config.saleMultiplier > 10) throw new Error('mcfish：基础出售倍率必须在 0 至 10 之间。')
   if (config.marketMinIncrease < -50 || config.marketMaxIncrease < -50) throw new Error('mcfish：行情跌幅不能超过 50%。')

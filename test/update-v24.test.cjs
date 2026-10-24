@@ -29,7 +29,7 @@ test('enchant levels use configured totals, add only the difference, and share m
   assert(render.warehouseText(p, market, config).includes('170/170'))
   assert(render.warehouseHtml(p, market, config, '玩家')[0].includes('170/170'))
   const help = render.helpHtml(config)[0]
-  assert(help.includes('+40/+80/+140')); assert(help.includes('0%/12.34%/100%'))
+  assert(help.includes('每级加成 40/40/60 耐久')); assert(help.includes('每级加成 0/12.34/87.66% 双倍概率'))
 })
 
 test('configured luck totals support fractional percentages and exact zero, boundary, and certain outcomes', () => {
@@ -44,11 +44,11 @@ test('configured luck totals support fractional percentages and exact zero, boun
 
 test('invalid or decreasing total bonuses are rejected and lowering max durability safely clamps stored rods', () => {
   const defaults = Config({})
-  assert.deepEqual(defaults.unbreakingBonuses, { level1: 30, level2: 70, level3: 120 })
-  assert.deepEqual(defaults.luckBonuses, { level1: 1, level2: 3, level3: 5 }); assert.equal(defaults.saleConfirmSeconds, 30)
+  assert.equal(defaults.unbreakingBonuses.level1, 20); assert.equal(defaults.unbreakingBonuses.level3, 60)
+  assert.equal(defaults.luckBonuses.level1, 3); assert.equal(defaults.luckBonuses.level3, 9); assert.equal(defaults.saleConfirmSeconds, 30)
   for (const changes of [{ unbreakingBonuses: { level1: 100, level2: 70, level3: 120 } },
     { unbreakingBonuses: { level1: 1.5, level2: 70, level3: 120 } },
-    { luckBonuses: { level1: 1, level2: 3, level3: 101 } },
+    { luckBonuses: { level1: 1, level2: 3, level3: 10001 } },
     { luckBonuses: { level1: 1, level2: 3, level3: 5.001 } }, { saleConfirmSeconds: 0 }]) {
     assert.throws(() => validateConfig({ ...defaults, ...changes }))
   }
@@ -105,7 +105,7 @@ test('confirmation expires at the deadline, cancels explicitly, replaces older r
 
 test('one-click sale uses the new copy and preserves all protected goods', () => {
   const p = g.createPlayer('bulk'); p.inventory = { 生鳕鱼: 2, 耐久附魔书: 1, 海洋之心: 1 }
-  assert.equal(g.sellAll(p, market, Config({})), '已出售2件普通物品，获得10个绿宝石，当前仓库 | 鱼竿、附魔书和稀有物品已保留')
+  assert.equal(g.sellAll(p, market, Config({})), '已出售2件普通物品，获得10个绿宝石 | 当前仓库鱼竿、附魔书和稀有物品已保留')
   assert.deepEqual(p.inventory, { 耐久附魔书: 1, 海洋之心: 1 }); assert.equal(p.rods.length, 1)
 })
 

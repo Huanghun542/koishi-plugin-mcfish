@@ -76,10 +76,10 @@ test('50% enchant boundary charges on failure, upgrades exactly one level, caps 
   for (let level = 1; level <= 3; level++) {
     g.enchant(p, 1, BOOKS[0], config, () => 49)
     assert.equal(p.rods[0].unbreaking, level)
-    assert.equal(g.maxDurability(p.rods[0]), [30, 60, 100, 150][level])
+    assert.equal(g.maxDurability(p.rods[0]), [30, 50, 70, 90][level])
   }
   const snapshot = structuredClone(p)
-  assert.throws(() => g.enchant(p, 1, BOOKS[0], config), /三级/); assert.deepEqual(p, snapshot)
+  assert.throws(() => g.enchant(p, 1, BOOKS[0], config), /3级/); assert.deepEqual(p, snapshot)
 })
 test('book consumption can be disabled and both enchantments coexist', () => {
   const p = funded(), c = Config({ consumeEnchantBook: false, enchantCost: 123 })
@@ -87,7 +87,7 @@ test('book consumption can be disabled and both enchantments coexist', () => {
   assert.equal(p.wallet, 99754); assert.deepEqual(p.inventory, {})
   assert.equal(p.rods[0].unbreaking, 1); assert.equal(p.rods[0].luck, 1)
 })
-test('luck levels use exact 1%, 3%, 5% boundaries; doubling consumes one cast and durability', () => {
+test('luck levels use exact 3%, 6%, 9% boundaries; doubling consumes one cast and durability', () => {
   for (let level = 1; level <= 3; level++) {
     for (let chance = 0; chance < 100; chance++) {
       const p = funded(); p.rods[0].luck = level
@@ -126,8 +126,8 @@ test('100% increase doubles prices, other items sell at base value, bulk sale ke
   assert.match(g.sellAll(p, m, config), /26个绿宝石/)
   assert.equal(p.wallet, 100026); assert.equal(p.rods.length, 1); assert.deepEqual(p.inventory, {})
 })
-test('blacksmith has only 5 plain rod types and 2 books; trading cannot restock it', () => {
-  assert.equal(g.shopItems(config).length, 7)
+test('blacksmith has only 5 plain rod types and 3 books; trading cannot restock it', () => {
+  assert.equal(g.shopItems(config).length, 8)
   const p = funded(); g.buy(p, '铁钓鱼竿', 2, config)
   assert.equal(p.rods.length, 3); assert(p.rods.slice(1).every(r => r.unbreaking === 0 && r.luck === 0 && r.durability === 50))
   assert.throws(() => g.buy(p, '生鳕鱼', 1, config), /仅出售/)

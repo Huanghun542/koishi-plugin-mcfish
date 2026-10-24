@@ -7,7 +7,7 @@ const mock = require('@koishijs/plugin-mock').default
 const plugin = require('../lib/index')
 const { GameRepository } = require('../lib/database')
 const g = require('../lib/game')
-const config = plugin.Config({ images: false, minWaitSeconds: 0, maxWaitSeconds: 0 })
+const config = plugin.Config({ images: false, minWaitSeconds: 0, maxWaitSeconds: 0, quoteMessages: false, forwardFishingResults: false })
 const id = user => JSON.stringify(['mock', user])
 let app, alice, bob, repo, mockFork
 const state = async user => (await app.database.get('mcfish_player', { id: id(user) }))[0]?.state
@@ -77,7 +77,7 @@ test('transaction failures roll back deductions, inventory and rods together', a
 })
 test('expired persisted fishing recovers exactly once on the next command', async () => {
   await seed('bob', p => { g.equip(p, 1); g.startFishing(p, 2, config, Date.now() - 1000, () => 0) })
-  await bob.shouldReply('仓库', [/上次钓鱼已完成/, /生鳕鱼 ×2/])
+  await bob.shouldReply('仓库', [/上次钓鱼已完成/, /未触发双倍产出/, /生鳕鱼 ×2/])
   await bob.shouldReply('仓库', /生鳕鱼 ×2/)
   assert.equal((await state('bob')).pending, null)
 })

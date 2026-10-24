@@ -3,7 +3,7 @@ import { Context, Session } from 'koishi'
 import { SOURCE_URL } from './catalog'
 import { Config, RecallTarget, validateConfig } from './config'
 import { GameRepository } from './database'
-import { buy, cancelRodSale, confirmRodSale, dayKey, enchant, equip, finishFishing, fishingText, GameError, Market, overflowText,
+import { buy, cancelRodSale, confirmRodSale, dayKey, enchant, equip, finishFishing, fishingResultParts, GameError, Market, overflowText,
   leaderboardText, Player, repair, salePrice, sell, sellAll, startFishing, trimOverflow, unequip } from './game'
 import { MessageFlow } from './core/messages'
 import { marketChange, rules } from './core/help'
@@ -56,7 +56,11 @@ export function apply(ctx: Context, config: Config) {
         const result = finishFishing(p, Date.now(), config)
         return { result, overflow: trimOverflow(p, m, config), pending: p.pending }
       }, session.username && session.username !== session.userId ? session.username : undefined)
-      if (recovered.result) await flow.send(`上次钓鱼已完成。\n${fishingText(recovered.result)}`, 'result')
+      if (recovered.result) {
+        const parts = fishingResultParts(recovered.result)
+        parts[0] = `上次钓鱼已完成。\n${parts[0]}`
+        await flow.sendFishing(parts)
+      }
       await flow.send(overflowText(recovered.overflow), 'trade')
       if (recovered.pending) throw new GameError(`正在钓鱼，约 ${Math.max(1, Math.ceil((recovered.pending.finishAt - Date.now()) / 1000))} 秒后完成。`, 'waiting')
       await action(id, flow)
@@ -123,7 +127,7 @@ export function apply(ctx: Context, config: Config) {
         if (!completed) throw new GameError('本次钓鱼尚未完成，请稍后查看仓库。', 'waiting')
         return { completed, overflow: trimOverflow(p, m, config) }
       })
-      await flow.send(fishingText(result.completed), 'result')
+      await flow.sendFishing(fishingResultParts(result.completed))
       await flow.send(overflowText(result.overflow), 'trade')
     }, options))
   function mutation(id: string, flow: MessageFlow, action: (p: Player, m: Market) => string, target: RecallTarget = 'trade') {
@@ -146,6 +150,6 @@ export function apply(ctx: Context, config: Config) {
     .action(({ session }) => guard(session, (id, flow) => mutation(id, flow, p => unequip(p))))
   ctx.command('mcfish.repair <序号:string>', `花费 ${config.repairCost} 绿宝石修满鱼竿耐久`).alias('维修')
     .action(({ session, options }, index) => guard(session, (id, flow) => mutation(id, flow, p => repair(p, index, config)), options))
-  ctx.command('mcfish.enchant <序号:string> <附魔书:string>', '对指定鱼竿附魔').alias('附魔')
+  ctx.command('mcfish.enchant <序号:string> <附魔书:string>', '附魔鱼竿；饵钓绑定用户').alias('附魔')
     .action(({ session, options }, index, book) => guard(session, (id, flow) => mutation(id, flow, p => enchant(p, index, book, config)), options))
 }

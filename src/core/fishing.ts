@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { LootItem } from '../catalog'
 import type { Config } from '../config'
 import { addItem } from './inventory'
-import { Dice, dice, ensureIdle, equippedRod, GameError, luckPercent, maxDurability, PendingFishing, Player, positive, safeAdd, syncDurability } from './model'
+import { dailyFishingLimit, Dice, dice, ensureIdle, equippedRod, GameError, luckPercent, maxDurability, PendingFishing, Player, positive, safeAdd, syncDurability } from './model'
 function draw(table: LootItem[], rng: Dice): LootItem {
   let value = rng(table.reduce((sum, item) => sum + item.weight, 0))
   for (const item of table) { if (value < item.weight) return item; value -= item.weight }
@@ -13,7 +13,7 @@ export function startFishing(player: Player, amount: unknown, config: Config, no
   ensureIdle(player)
   const requested = positive(amount)
   syncDurability(player, config)
-  const remaining = Math.max(0, config.dailyLimit - player.casts)
+  const remaining = Math.max(0, dailyFishingLimit(player, config) - player.casts)
   if (!remaining) throw new GameError('今日钓鱼次数已用完，明天再来吧', 'notice')
   const rod = equippedRod(player)
   if (!rod) throw new GameError('尚未装备鱼竿，请使用“装备 N”选择仓库中的鱼竿。', 'equipment')
@@ -23,18 +23,19 @@ export function startFishing(player: Player, amount: unknown, config: Config, no
   if (requested > remaining) notes.push(`今日剩余 ${remaining} 次，已按剩余次数计算。`)
   if (Math.min(requested, remaining) > rod.durability) notes.push(`鱼竿耐久不足，已按剩余 ${rod.durability} 点耐久进行钓鱼。`)
   const drops: Record<string, number> = {}
+  const bonusDrops: Record<string, number> = {}
   let doubled = 0
   for (let i = 0; i < casts; i++) {
     const item = draw(config.lootTable, rng)
     const double = rod.luck > 0 && rng(10000) < Math.round(luckPercent(rod, config) * 100)
-    if (double) doubled++
+    if (double) { doubled++; bonusDrops[item.name] = safeAdd(bonusDrops[item.name] || 0, 1) }
     drops[item.name] = safeAdd(drops[item.name] || 0, double ? 2 : 1)
   }
   const seconds = config.minWaitSeconds === config.maxWaitSeconds ? config.minWaitSeconds
     : config.minWaitSeconds + rng(config.maxWaitSeconds - config.minWaitSeconds + 1)
   rod.durability -= casts
   player.casts += casts
-  const pending: PendingFishing = { token: randomUUID(), day: player.day, casts, finishAt: now + seconds * 1000, rodId: rod.id, drops, doubled, notes }
+  const pending: PendingFishing = { token: randomUUID(), day: player.day, casts, finishAt: now + seconds * 1000, rodId: rod.id, drops, bonusDrops, doubled, notes }
   player.pending = pending
   return pending
 }
@@ -60,4 +61,14 @@ export function finishFishing(player: Player, now = Date.now(), config?: Config)
 export function fishingText(result: PendingFishing): string {
   return [`本次完成 ${result.casts} 次钓鱼：`, ...Object.entries(result.drops).map(([name, count]) => `${name} ×${count}`),
     result.doubled ? `海之眷顾触发 ${result.doubled} 次双倍产出。` : '', ...result.notes].filter(Boolean).join('\n')
+}
+export function fishingResultParts(result: PendingFishing): [string, string] {
+  const base = Object.entries(result.drops).map(([name, count]) => `${name} ×${count - (result.bonusDrops?.[name] || 0)}`)
+  const extra = result.bonusDrops ? Object.entries(result.bonusDrops).map(([name, count]) => `${name} ×${count}`) : []
+  return [
+    [`本次完成 ${result.casts} 次钓鱼：`, ...base, ...result.notes].join('\n'),
+    extra.length ? [`海之眷顾触发 ${result.doubled} 次双倍产出，额外获得：`, ...extra].join('\n')
+      : result.doubled ? `海之眷顾触发 ${result.doubled} 次双倍产出，额外奖励已计入上方结果`
+      : '本次未触发双倍产出',
+  ]
 }

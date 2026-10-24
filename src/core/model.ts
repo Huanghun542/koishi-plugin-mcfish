@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomInt, randomUUID } from 'node:crypto'
-import { DOUBLE_PERCENT, DURABILITY_BONUS, normalizeName, RODS } from '../catalog'
-import type { Config, EnchantBonuses } from '../config'
+import { normalizeName, RODS } from '../catalog'
+import type { Config } from '../config'
+import { enchantBonus } from './enchantments'
 export class GameError extends Error {
   constructor(message: string, public target: import('../config').RecallTarget = 'notice') { super(message) }
 }
 export interface Rod { id: string; name: string; durability: number; baseDurability: number; unbreaking: number; luck: number }
-export interface PendingFishing { token: string; day: string; casts: number; finishAt: number; rodId: string; drops: Record<string, number>; doubled: number; notes: string[] }
+export interface PendingFishing { token: string; day: string; casts: number; finishAt: number; rodId: string; drops: Record<string, number>; bonusDrops?: Record<string, number>; doubled: number; notes: string[] }
 export interface PendingRodSale { rodIds: string[]; expiresAt: number; scope: string }
 export interface Player {
   version: 2; id: string; wallet: number; rods: Rod[]; equippedId: string | null
   inventory: Record<string, number>; day: string; casts: number; pending: PendingFishing | null
+  lureLevel: number
   pendingRodSale?: PendingRodSale
 }
 export interface Market { day: string; increases: Record<string, number>; signature?: string }
@@ -39,17 +41,15 @@ export function newRod(name: string): Rod {
   if (!definition) throw new GameError('铁匠铺没有这种鱼竿。')
   return { id: randomUUID(), name: definition.name, durability: definition.durability, baseDurability: definition.durability, unbreaking: 0, luck: 0 }
 }
-function levelBonus(level: number, values: EnchantBonuses | undefined, fallback: number[]): number {
-  return level === 0 ? 0 : values?.[`level${level}` as keyof EnchantBonuses] ?? fallback[level]
-}
-export function maxDurability(rod: Rod, config?: Config): number { return rod.baseDurability + levelBonus(rod.unbreaking, config?.unbreakingBonuses, DURABILITY_BONUS) }
-export function luckPercent(rod: Rod, config: Config): number { return levelBonus(rod.luck, config.luckBonuses, DOUBLE_PERCENT) }
+export function maxDurability(rod: Rod, config?: Config): number { return rod.baseDurability + enchantBonus('unbreaking', rod.unbreaking, config) }
+export function luckPercent(rod: Rod, config: Config): number { return Math.min(100, enchantBonus('luck', rod.luck, config)) }
+export function dailyFishingLimit(player: Player, config: Config): number { return config.dailyLimit + enchantBonus('lure', player.lureLevel || 0, config) }
 export function syncDurability(player: Player, config: Config) {
   for (const rod of player.rods) rod.durability = Math.min(rod.durability, maxDurability(rod, config))
 }
 export function createPlayer(id: string): Player {
   const rod = newRod('木钓鱼竿')
-  return { version: 2, id, wallet: 100, rods: [rod], equippedId: rod.id, inventory: {}, day: '', casts: 0, pending: null }
+  return { version: 2, id, wallet: 100, rods: [rod], equippedId: rod.id, inventory: {}, day: '', casts: 0, pending: null, lureLevel: 0 }
 }
 export function resetDay(player: Player, day: string) {
   if (player.day !== day) { player.day = day; player.casts = 0 }
@@ -63,8 +63,8 @@ export function rodAt(player: Player, index: unknown): Rod {
 // Upgrade published v1 saves once, preserving balances, bag counts and equipped gear.
 export function migratePlayer(raw: any, id: string): Player {
   if (!raw) return createPlayer(id)
-  if (raw.version === 2) return raw as Player
-  const player: Player = { version: 2, id, wallet: raw.wallet ?? 100, rods: [], equippedId: null, inventory: {}, day: raw.day || '', casts: raw.casts || 0, pending: null }
+  if (raw.version === 2) { raw.lureLevel ??= 0; return raw as Player }
+  const player: Player = { version: 2, id, wallet: raw.wallet ?? 100, rods: [], equippedId: null, inventory: {}, day: raw.day || '', casts: raw.casts || 0, pending: null, lureLevel: 0 }
   const gear = (old: any, oldId = randomUUID()) => {
     const name = normalizeName(old.name)
     const baseDurability = RODS.find(rod => rod.name === name)?.durability || 301

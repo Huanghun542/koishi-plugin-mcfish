@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createHash } from 'node:crypto'
-import { BOOKS, isEnchantBook, normalizeName, RODS } from '../catalog'
+import { BOOKS, enchantmentKind, isEnchantBook, normalizeName, RODS } from '../catalog'
 import type { Config } from '../config'
 import { addItem, removeItem } from './inventory'
+import { enchantRate } from './enchantments'
 import { Dice, ensureIdle, GameError, Market, MAX_PAGES, newRod, Player, positive, Rod, rodAt, ROWS_PER_PAGE, safeAdd } from './model'
 export function basePrice(name: string, config: Config): number {
   return Math.round(RODS.find(rod => rod.name === name)?.price ?? config.lootTable.find(item => item.name === name)?.price
-    ?? (name === BOOKS[0] ? 100 : name === BOOKS[1] ? 150 : 0))
+    ?? (name === BOOKS[0] ? 100 : name === BOOKS[1] ? 150 : name === BOOKS[2] ? 175 : 0))
 }
 export function shopItems(config: Config): { name: string; price: number }[] {
   return [...RODS.map(({ name, price }) => ({ name, price })), ...BOOKS.map(name => ({ name, price: basePrice(name, config) * 2 }))]
@@ -64,7 +65,7 @@ export function buy(player: Player, name: string, quantity: unknown, config: Con
   }
   addItem(player, name, count)
   player.wallet -= cost
-  return `${purchased} | 附魔指令：「附魔 N ${name}」| 消耗${config.enchantCost}个绿宝石，成功率${config.enchantSuccessRate}%${config.consumeEnchantBook ? '' : '，不消耗附魔书'}`
+  return `${purchased} | 附魔指令：「附魔 N ${name}」| 消耗${config.enchantCost}个绿宝石，成功率${enchantRate(enchantmentKind(name), config)}%${config.consumeEnchantBook ? '' : '，不消耗附魔书'}${name === BOOKS[2] ? ' | 饵钓绑定用户，换竿后仍生效' : ''}`
 }
 function sellRods(player: Player, rods: Rod[]): string {
   const ids = new Set(rods.map(rod => rod.id))
@@ -126,5 +127,5 @@ export function sellAll(player: Player, market: Market, config: Config) {
   player.wallet = safeAdd(player.wallet, earned)
   for (const name of names) delete player.inventory[name]
   delete player.pendingRodSale
-  return `已出售${count}件普通物品，获得${earned}个绿宝石，当前仓库 | 鱼竿、附魔书和稀有物品已保留`
+  return `已出售${count}件普通物品，获得${earned}个绿宝石 | 当前仓库鱼竿、附魔书和稀有物品已保留`
 }

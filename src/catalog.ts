@@ -9,9 +9,14 @@ export const RODS: RodDefinition[] = [
   { name: '钻石钓鱼竿', price: 1500, durability: 100 },
   { name: '下界合金钓鱼竿', price: 3100, durability: 150 },
 ]
-export const BOOKS = ['耐久附魔书', '海之眷顾附魔书'] as const
-export const DURABILITY_BONUS = [0, 30, 70, 120]
-export const DOUBLE_PERCENT = [0, 1, 3, 5]
+export const BOOKS = ['耐久附魔书', '海之眷顾附魔书', '饵钓附魔书'] as const
+export type EnchantmentKind = 'unbreaking' | 'luck' | 'lure'
+export const DURABILITY_BONUS = Array.from({ length: 11 }, (_, level) => level * 20)
+export const DOUBLE_PERCENT = Array.from({ length: 11 }, (_, level) => level * 3)
+export const LURE_BONUS = Array.from({ length: 11 }, (_, level) => level * 5)
+export function enchantmentKind(name: string): EnchantmentKind {
+  return normalizeName(name) === BOOKS[0] ? 'unbreaking' : normalizeName(name) === BOOKS[1] ? 'luck' : 'lure'
+}
 export const LEGACY_LOOT_V21: LootItem[] = [
   { name: '生鳕鱼', price: 10, weight: 69, rare: false },
   { name: '鲑鱼', price: 20, weight: 20, rare: false },
@@ -59,6 +64,7 @@ export function normalizeName(name: string): string {
     木竿: '木钓鱼竿', 铁竿: '铁钓鱼竿', 金竿: '金钓鱼竿', 钻石竿: '钻石钓鱼竿',
     下界合金竿: '下界合金钓鱼竿', 鳕鱼: '生鳕鱼', 鹦鹉螺: '鹦鹉螺壳',
     耐久: BOOKS[0], '耐久附魔': BOOKS[0], 海之眷顾: BOOKS[1], '海之眷顾附魔': BOOKS[1],
+    饵钓: BOOKS[2], 饵钓附魔: BOOKS[2],
   }
   const key = name.trim()
   return Object.hasOwn(aliases, key) ? aliases[key] : key
